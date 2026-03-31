@@ -1,0 +1,168 @@
+<?php
+require_once "../auth/conn.php";
+
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
+    $customer_name = $_POST['customer_name'];
+    $product_id = $_POST['product_id']; 
+    $quantity = $_POST['quantity'];
+    $status = !empty($_POST['status']) ? $_POST['status'] : 'Pending';
+    $delivery = $_POST['estimated_delivery'];
+
+    $sql = "INSERT INTO orders (product_id, customer_name, quantity, status, estimated_delivery) VALUES (?, ?, ?, ?, ?)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$product_id, $customer_name, $quantity, $status, $delivery]);
+
+    header("Location: orders.php?success=1");
+    exit();
+}
+
+$all_products = $pdo->query("SELECT id, product_name, price FROM products")->fetchAll();
+$all_orders = $pdo->query("SELECT o.*, p.product_name, p.price 
+                            FROM orders o 
+                            JOIN products p ON o.product_id = p.id 
+                            ORDER BY o.created_at DESC")->fetchAll();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Orders</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        .order-section { padding: 20px; }
+        .order-title-bar { background-color: #f28c28; color: white; padding: 12px; border-radius: 25px; text-align: center; font-weight: bold; margin-bottom: 30px; max-width: 600px; margin: 0 auto 30px auto; }
+        .orders-table { width: 100%; background: white; border-collapse: collapse; border: 1px solid #ddd; }
+        .orders-table th { border: 1px solid #ddd; padding: 15px; background-color: #fffdfa; color: #333; font-size: 0.9rem; }
+        .orders-table td { border: 1px solid #ddd; padding: 12px; text-align: center; font-size: 0.85rem; }
+        .status-Approved { color: #27ae60; font-weight: bold; }
+        .status-Pending { color: #e67e22; font-weight: bold; }
+        .total-price { font-weight: bold; color: #2c3e50; }
+        .refresh-btn { background-color: #f28c28; color: white; border: none; padding: 10px 30px; border-radius: 20px; cursor: pointer; font-weight: bold; margin-left: 10px; float: right; margin-top: 20px;}
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background: #fff; margin: 10% auto; padding: 20px; width: 400px; border-radius: 10px; }
+        .modal-content input, .modal-content select { width: 100%; padding: 8px; margin: 5px 0 10px; box-sizing: border-box; }
+        .close { float: right; cursor: pointer; font-size: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Orders</span></div>
+            <nav style="flex-grow: 1;">
+                <a href="index.php" class="nav-item ">
+                    <i class="fa-solid fa-table-columns"></i> 
+                    <span>Dashboard</span>
+                </a>
+                <a href="transfer_request.php" class="nav-item">
+                    <i class="fa-solid fa-right-left"></i> 
+                    <span>Transfer Request</span>
+                </a>
+                <a href="basic_reports.php" class="nav-item ">
+                    <i class="fa-solid fa-pen-to-square"></i> 
+                    <span>Basic Reports</span>
+                </a>
+                <a href="orders.php" class="nav-item active">
+                    <i class="fa-solid fa-pen-to-square"></i> 
+                    <span>Order</span>
+                </a>
+                <a href="sales.php" class="nav-item">
+                    <i class="fa-solid fa-chart-simple"></i> 
+                    <span>Sales</span>
+                </a>
+                <a href="settings.php" class="nav-item">
+                    <i class="fa-solid fa-user-gear"></i> 
+                    <span>Profile</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket icon"></i> <span>Logout</span></a>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
+                    <h1>Track Orders</h1>
+                </div>
+                <div class="user-profile"><i class="fa-solid fa-circle-user"></i></div>
+            </header>
+
+            <section class="order-section">
+                <div class="order-title-bar">Track Orders & Deliveries</div>
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer Name</th>
+                            <th>Product</th>
+                            <th>Unit Price</th>
+                            <th>Qty</th>
+                            <th>Total Price</th>
+                            <th>Status</th>
+                            <th>Estimated Delivery</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($all_orders as $row): 
+                            $total_price = $row['quantity'] * $row['price'];
+                            // FIX: If DB is empty, show 'Pending'
+                            $status_text = !empty($row['status']) ? $row['status'] : 'Pending';
+                        ?>
+                        <tr>
+                            <td>#<?= $row['order_id'] ?></td>
+                            <td><?= htmlspecialchars($row['customer_name']) ?></td>
+                            <td><?= htmlspecialchars($row['product_name']) ?></td>
+                            <td>₱<?= number_format($row['price'], 2) ?></td>
+                            <td><?= $row['quantity'] ?></td>
+                            <td class="total-price">₱<?= number_format($total_price, 2) ?></td>
+                            <td class="status-<?= $status_text ?>"><?= $status_text ?></td>
+                            <td><?= $row['estimated_delivery'] ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+                <button class="refresh-btn" onclick="openForm()">Add Customer Order</button>
+
+                <div id="popupForm" class="modal">
+                    <div class="modal-content">
+                        <span class="close" onclick="closeForm()">&times;</span>
+                        <h2 style="color: #e67e22;">New Order Entry</h2>
+                        <form method="POST">
+                            <label>Customer Name:</label>
+                            <input type="text" name="customer_name" required>
+                            <label>Product:</label>
+                            <select name="product_id" required>
+                                <option value="">-- Select Product --</option>
+                                <?php foreach ($all_products as $p): ?>
+                                    <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['product_name']) ?> (₱<?= number_format($p['price'], 2) ?>)</option>
+                                <?php endforeach; ?>
+                            </select>
+                            <label>Quantity:</label>
+                            <input type="number" name="quantity" min="1" required>
+                            
+                            <input type="hidden" name="status" value="Pending">
+
+                            <label>Estimated Delivery:</label>
+                            <input type="date" name="estimated_delivery" required>
+                            <button type="submit" name="save_order" style="background: #e67e22; color: white; border: none; padding: 12px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px;">Save Order</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script>
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            document.querySelector('.sidebar').classList.toggle('collapsed');
+        });
+        function openForm() { document.getElementById("popupForm").style.display = "block"; }
+        function closeForm() { document.getElementById("popupForm").style.display = "none"; }
+    </script>
+</body>
+</html>
