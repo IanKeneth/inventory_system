@@ -1,12 +1,12 @@
 <?php
 require_once "../auth/conn.php";
 
-
+// Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     $customer_name = $_POST['customer_name'];
     $product_id = $_POST['product_id']; 
     $quantity = $_POST['quantity'];
-    $status = !empty($_POST['status']) ? $_POST['status'] : 'Pending';
+    $status = 'Pending'; // Default for new staff entries
     $delivery = $_POST['estimated_delivery'];
 
     $sql = "INSERT INTO orders (product_id, customer_name, quantity, status, estimated_delivery) VALUES (?, ?, ?, ?, ?)";
@@ -17,8 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     exit();
 }
 
+// Fetch Products
 $all_products = $pdo->query("SELECT id, product_name, price FROM products")->fetchAll();
-$all_orders = $pdo->query("SELECT o.*, p.product_name, p.price 
+
+// FIXED SQL QUERY: Pulling 'category' directly from the 'products' table (p.category)
+$all_orders = $pdo->query("SELECT o.*, p.product_name, p.price, p.category 
                             FROM orders o 
                             JOIN products p ON o.product_id = p.id 
                             ORDER BY o.created_at DESC")->fetchAll();
@@ -38,14 +41,23 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price
         .orders-table { width: 100%; background: white; border-collapse: collapse; border: 1px solid #ddd; }
         .orders-table th { border: 1px solid #ddd; padding: 15px; background-color: #fffdfa; color: #333; font-size: 0.9rem; }
         .orders-table td { border: 1px solid #ddd; padding: 12px; text-align: center; font-size: 0.85rem; }
+        
+        /* Status Colors */
         .status-Approved { color: #27ae60; font-weight: bold; }
         .status-Pending { color: #e67e22; font-weight: bold; }
+        .status-Delivered { color: #2c3e50; font-weight: bold; }
+        .status-Declined { color: #e74c3c; font-weight: bold; }
+        
+        .category-badge { background: #f0f0f0; color: #666; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase; }
+        .decline-reason-text { display: block; color: #e74c3c; font-size: 0.75rem; font-style: italic; margin-top: 5px; }
+        
         .total-price { font-weight: bold; color: #2c3e50; }
         .refresh-btn { background-color: #f28c28; color: white; border: none; padding: 10px 30px; border-radius: 20px; cursor: pointer; font-weight: bold; margin-left: 10px; float: right; margin-top: 20px;}
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
         .modal-content { background: #fff; margin: 10% auto; padding: 20px; width: 400px; border-radius: 10px; }
-        .modal-content input, .modal-content select { width: 100%; padding: 8px; margin: 5px 0 10px; box-sizing: border-box; }
-        .close { float: right; cursor: pointer; font-size: 20px; }
+        .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 5px 0 15px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 5px; }
+        .close { float: right; cursor: pointer; font-size: 20px; color: #999; }
+        .alert-success { background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
     </style>
 </head>
 <body>
@@ -53,33 +65,15 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Orders</span></div>
             <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item ">
-                    <i class="fa-solid fa-table-columns"></i> 
-                    <span>Dashboard</span>
-                </a>
-                <a href="transfer_request.php" class="nav-item">
-                    <i class="fa-solid fa-right-left"></i> 
-                    <span>Transfer Request</span>
-                </a>
-                <a href="basic_reports.php" class="nav-item ">
-                    <i class="fa-solid fa-pen-to-square"></i> 
-                    <span>Basic Reports</span>
-                </a>
-                <a href="orders.php" class="nav-item active">
-                    <i class="fa-solid fa-pen-to-square"></i> 
-                    <span>Order</span>
-                </a>
-                <a href="sales.php" class="nav-item">
-                    <i class="fa-solid fa-chart-simple"></i> 
-                    <span>Sales</span>
-                </a>
-                <a href="settings.php" class="nav-item">
-                    <i class="fa-solid fa-user-gear"></i> 
-                    <span>Profile</span>
-                </a>
+                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
+                <a href="basic_reports.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
+                <a href="orders.php" class="nav-item active"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
+                <a href="sales.php" class="nav-item"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
             <div class="sidebar-footer">
-                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket icon"></i> <span>Logout</span></a>
+                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
             </div>
         </aside>
 
@@ -93,35 +87,47 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price
             </header>
 
             <section class="order-section">
+                <?php if(isset($_GET['success'])): ?>
+                    <div class="alert-success">Order added successfully! Waiting for Admin approval.</div>
+                <?php endif; ?>
+
                 <div class="order-title-bar">Track Orders & Deliveries</div>
                 <table class="orders-table">
                     <thead>
                         <tr>
                             <th>Order ID</th>
                             <th>Customer Name</th>
+                            <th>Category</th>
                             <th>Product</th>
                             <th>Unit Price</th>
                             <th>Qty</th>
                             <th>Total Price</th>
-                            <th>Status</th>
+                            <th>Status</th> 
                             <th>Estimated Delivery</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($all_orders as $row): 
                             $total_price = $row['quantity'] * $row['price'];
-                            // FIX: If DB is empty, show 'Pending'
                             $status_text = !empty($row['status']) ? $row['status'] : 'Pending';
                         ?>
                         <tr>
                             <td>#<?= $row['order_id'] ?></td>
                             <td><?= htmlspecialchars($row['customer_name']) ?></td>
+                            <td><span class="category-badge"><?= htmlspecialchars($row['category'] ?? 'N/A') ?></span></td>
                             <td><?= htmlspecialchars($row['product_name']) ?></td>
                             <td>₱<?= number_format($row['price'], 2) ?></td>
                             <td><?= $row['quantity'] ?></td>
                             <td class="total-price">₱<?= number_format($total_price, 2) ?></td>
-                            <td class="status-<?= $status_text ?>"><?= $status_text ?></td>
-                            <td><?= $row['estimated_delivery'] ?></td>
+                            <td>
+                                <span class="status-<?= $status_text ?>"><?= $status_text ?></span>
+                                <?php if($status_text === 'Declined' && !empty($row['decline_reason'])): ?>
+                                    <span class="decline-reason-text">
+                                        <i class="fa-solid fa-circle-info"></i> <?= htmlspecialchars($row['decline_reason']) ?>
+                                    </span>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= date('M d, Y', strtotime($row['estimated_delivery'])) ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -132,10 +138,11 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price
                 <div id="popupForm" class="modal">
                     <div class="modal-content">
                         <span class="close" onclick="closeForm()">&times;</span>
-                        <h2 style="color: #e67e22;">New Order Entry</h2>
+                        <h2 style="color: #e67e22; margin-bottom: 20px;">New Order Entry</h2>
                         <form method="POST">
                             <label>Customer Name:</label>
-                            <input type="text" name="customer_name" required>
+                            <input type="text" name="customer_name" required placeholder="John Doe">
+                            
                             <label>Product:</label>
                             <select name="product_id" required>
                                 <option value="">-- Select Product --</option>
@@ -143,13 +150,13 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price
                                     <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['product_name']) ?> (₱<?= number_format($p['price'], 2) ?>)</option>
                                 <?php endforeach; ?>
                             </select>
-                            <label>Quantity:</label>
-                            <input type="number" name="quantity" min="1" required>
                             
-                            <input type="hidden" name="status" value="Pending">
+                            <label>Quantity:</label>
+                            <input type="number" name="quantity" min="1" required value="1">
 
                             <label>Estimated Delivery:</label>
                             <input type="date" name="estimated_delivery" required>
+                            
                             <button type="submit" name="save_order" style="background: #e67e22; color: white; border: none; padding: 12px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px;">Save Order</button>
                         </form>
                     </div>
@@ -163,6 +170,9 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price
         });
         function openForm() { document.getElementById("popupForm").style.display = "block"; }
         function closeForm() { document.getElementById("popupForm").style.display = "none"; }
+        window.onclick = function(event) {
+            if (event.target == document.getElementById("popupForm")) closeForm();
+        }
     </script>
 </body>
 </html>

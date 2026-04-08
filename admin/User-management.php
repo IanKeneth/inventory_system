@@ -101,7 +101,7 @@ try {
                         <th>ID</th>
                         <th>FULL NAME</th>
                         <th>EMAIL</th>
-                        <th>PASSWORD</th>
+                        
                         <th>ROLE</th>
                         <th>CREATED_AT</th>
                         <th>ACTIONS</th>
@@ -114,7 +114,7 @@ try {
                                 <td><?= e($user['id']) ?></td>
                                 <td><?= e($user['name']) ?></td>
                                 <td><?= e($user['email']) ?></td>
-                                <td style="color: #999;">********</td> <td>
+                                 <td>
                                     <span class="badge"><?= e(strtoupper($user['role'])) ?></span>
                                 </td>
                                 <td><?= e(date('M d, Y', strtotime($user['created_at']))) ?></td>

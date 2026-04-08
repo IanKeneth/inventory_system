@@ -1,8 +1,4 @@
-<?php
-require_once "../add_products/dym.php";
 
-
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
