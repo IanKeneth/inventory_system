@@ -66,6 +66,9 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price, p.category
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Orders</span></div>
             <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                 <a href="user_inventory.php" class="nav-item">
+                    <i class="fa-solid fa-right-left"></i> <span>User Inventory</span>
+                </a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
                 <a href="basic_reports.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
                 <a href="orders.php" class="nav-item active"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>

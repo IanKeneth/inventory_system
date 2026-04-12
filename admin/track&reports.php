@@ -1,10 +1,11 @@
 <?php
 require_once "../auth/conn.php";
-/** @var PDO $pdo */ // This tells the editor that $pdo is a PDO object
+/** @var PDO $pdo */ 
 
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'All';
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 
+// --- DATABASE LOGIC ---
 $whereClauses = [];
 if ($filter === 'In') {
     $whereClauses[] = "il.type = 'In'";
@@ -33,11 +34,38 @@ $query = "SELECT
 
 $stmt = $pdo->prepare($query);
 if (!empty($search)) {
-    // Correctly bind the PHP variable $search with wildcards
     $stmt->bindValue(':search', '%' . $search . '%'); 
 }
 $stmt->execute();
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// --- EXPORT LOGIC (Must be before any HTML) ---
+if (isset($_GET['export']) && $_GET['export'] === 'excel') {
+    $filename = "Inventory_Report_" . date('Y-m-d_His') . ".csv";
+    
+    // Set headers to force download as Excel/CSV
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=' . $filename);
+    
+    $output = fopen('php://output', 'w');
+    
+    // Column Headers
+    fputcsv($output, ['Timestamp', 'Product Name', 'Variation', 'Movement Type', 'Quantity', 'Reference Note']);
+    
+    // Data Rows
+    foreach ($logs as $row) {
+        fputcsv($output, [
+            $row['created_at'],
+            $row['product_name'],
+            $row['variation'],
+            $row['type'],
+            $row['quantity'],
+            $row['reason']
+        ]);
+    }
+    fclose($output);
+    exit; // Stop executing to prevent HTML from being added to the file
+}
 
 // Totals calculation
 $totalIn = $pdo->query("SELECT SUM(quantity) FROM inventory_logs WHERE type = 'In'")->fetchColumn() ?? 0;
@@ -64,66 +92,18 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
         }
 
         .report-container { padding: 30px; background: var(--bg-light); min-height: 100vh; }
-        
-        /* Summary Cards Overhaul */
-        .summary-cards { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; 
-            margin-bottom: 30px; 
-        }
-        .s-card { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 16px; 
-            display: flex; 
-            align-items: center; 
-            gap: 20px; 
-            transition: transform 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        }
+        .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .s-card { background: white; padding: 20px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: transform 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
         .s-card:hover { transform: translateY(-5px); }
-        .s-icon { 
-            width: 55px; 
-            height: 55px; 
-            border-radius: 12px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 1.5rem; 
-        }
+        .s-icon { width: 55px; height: 55px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
 
-        /* Search & Filter Bar */
-        .controls-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        .search-box {
-            position: relative;
-            flex: 1;
-            max-width: 400px;
-        }
-        .search-box input {
-            width: 100%;
-            padding: 10px 15px 10px 40px;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-            outline: none;
-        }
-        .search-box i {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94a3b8;
-        }
+        .controls-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; flex-wrap: wrap; gap: 15px; }
+        .search-box { position: relative; flex: 1; max-width: 400px; }
+        .search-box input { width: 100%; padding: 10px 15px 10px 40px; border-radius: 10px; border: 1px solid #e2e8f0; outline: none; }
+        .search-box i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
 
         .filter-group { display: flex; gap: 8px; }
-        .filter-btn { 
+        .filter-btn, .export-btn { 
             padding: 10px 20px; 
             border-radius: 10px; 
             background: white; 
@@ -133,50 +113,28 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
             font-weight: 600;
             border: 1px solid #e2e8f0;
             transition: 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
-        .filter-btn.active { 
-            background: var(--primary); 
-            color: white; 
-            border-color: var(--primary);
-            box-shadow: 0 4px 12px rgba(242, 140, 40, 0.3);
-        }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 12px rgba(242, 140, 40, 0.3); }
+        
+        .export-btn { background: #1e293b; color: white; border: none; }
+        .export-btn:hover { background: #0f172a; cursor: pointer; }
 
-        /* Table Design */
-        .report-card { 
-            background: white; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
+        .report-card { background: white; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); overflow: hidden; }
         .table-responsive { width: 100%; }
         table { width: 100%; border-collapse: collapse; }
-        th { 
-            background: #f1f5f9; 
-            padding: 18px; 
-            text-align: left; 
-            font-size: 0.8rem; 
-            letter-spacing: 0.05em; 
-            color: #475569; 
-            text-transform: uppercase;
-        }
+        th { background: #f1f5f9; padding: 18px; text-align: left; font-size: 0.8rem; letter-spacing: 0.05em; color: #475569; text-transform: uppercase; }
         td { padding: 18px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         tr:hover { background-color: #f8fafc; }
 
-        .badge { 
-            padding: 6px 12px; 
-            border-radius: 20px; 
-            font-size: 0.75rem; 
-            font-weight: 800; 
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
+        .badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 5px; }
         .badge-in { background: #dcfce7; color: var(--success); }
         .badge-out { background: #fee2e2; color: var(--danger); }
         
         .product-info b { color: var(--text-dark); display: block; margin-bottom: 2px; }
         .product-info small { color: var(--primary); font-weight: 600; }
-        
         .qty-text { font-family: 'Courier New', monospace; font-size: 1.1rem; font-weight: bold; }
     </style>
 </head>
@@ -184,19 +142,27 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Admin Panel</span></div>
-             <nav style="flex-grow: 1;">
+              <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
                 <a href="inventory.php" class="nav-item"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
                 <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
-                <a href="track&reports.php" class="nav-item active"><i class="fa-solid fa-route"></i> <span>Track & Reports</span></a>
-                <a href="view_orders.php" class="nav-item "><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
+                <a href="track&reports.php" class="nav-item"><i class="fa-solid fa-route"></i> <span>Track & Reports</span></a>
+                <a href="track_request.php" class="nav-item active"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
+                
+                <a href="view_orders.php" class="nav-item"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
                 <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
+                <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
             </nav>
         </aside>
 
         <main class="main-content">
             <header class="header">
                 <div class="header-left"><h1>Analytics & History</h1></div>
+                <div class="header-right">
+                    <a href="?export=excel&filter=<?= $filter ?>&search=<?= urlencode($search) ?>" class="export-btn">
+                        <i class="fa-solid fa-file-excel"></i> Export to Excel
+                    </a>
+                </div>
             </header>
 
             <section class="report-container">
@@ -270,7 +236,6 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
                                 <?php else: ?>
                                     <tr>
                                         <td colspan="5" style="text-align:center; padding:100px;">
-                                            <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" width="80" style="opacity: 0.2; margin-bottom: 20px;">
                                             <p style="color:#94a3b8;">No activity logs match your criteria.</p>
                                         </td>
                                     </tr>

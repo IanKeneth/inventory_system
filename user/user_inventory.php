@@ -63,16 +63,16 @@ function e($value) {
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Inventory System</span></div>
-              <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
-                <a href="inventory.php" class="nav-item"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
-                <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
-                <a href="track&reports.php" class="nav-item"><i class="fa-solid fa-route"></i> <span>Track & Reports</span></a>
-                <a href="track_request.php" class="nav-item active"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
-                
-                <a href="view_orders.php" class="nav-item"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
-                <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
-                <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
+             <nav style="flex-grow: 1;">
+                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                 <a href="user_inventory.php" class="nav-item">
+                    <i class="fa-solid fa-right-left"></i> <span>User Inventory</span>
+                </a>
+                <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
+                <a href="basic_reports.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
+                <a href="orders.php" class="nav-item active"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
+                <a href="sales.php" class="nav-item"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
             <div class="sidebar-footer">
                 <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
@@ -101,7 +101,7 @@ function e($value) {
                                 <th>Price</th>
                                 <th>Qty</th>
                                 <th>Health</th>
-                                <th>Action</th>
+                            
                             </tr>
                         </thead>
                         <tbody>
@@ -129,7 +129,7 @@ function e($value) {
                                             <small><?= round($percent) ?>%</small>
                                         </div>
                                     </td>
-                                    <td><a href="../add_products/edit_product.php?id=<?= $product['id'] ?>" style="color:#f28c28;"><i class="fa-solid fa-pen-to-square"></i></a></td>
+            
                                 </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
