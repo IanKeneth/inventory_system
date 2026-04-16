@@ -9,24 +9,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 try {
-    // 1. CALCULATE REVENUE (Based on your orders/sales table)
-    // Total Revenue
+    // 1. CALCULATE REVENUE
     $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved'");
     $totalSales = $stmt->fetch()['total'] ?? 0;
 
-    // Daily Revenue
     $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved' AND DATE(created_at) = CURDATE()");
     $dailySales = $stmt->fetch()['total'] ?? 0;
 
-    // Monthly Revenue
     $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())");
     $monthlySales = $stmt->fetch()['total'] ?? 0;
 
-    // Yearly Revenue
     $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved' AND YEAR(created_at) = YEAR(CURDATE())");
     $yearlySales = $stmt->fetch()['total'] ?? 0;
 
-    // Days since system launch (to unlock cards)
     $stmt = $pdo->query("SELECT DATEDIFF(CURDATE(), MIN(created_at)) as days FROM orders");
     $daysSinceStart = $stmt->fetch()['days'] ?? 0;
 
@@ -34,17 +29,17 @@ try {
     $stmt = $pdo->query("SELECT COUNT(*) FROM products");
     $productCount = $stmt->fetchColumn();
 
-    // 3. LOW STOCK ALERTS (Calculates health <= 15%)
+    // 3. LOW STOCK ALERTS
     $stmt = $pdo->query("SELECT COUNT(*) FROM products WHERE (quantity / max_quantity) * 100 <= 15");
     $lowStockCount = $stmt->fetchColumn();
 
-    // 4. RECENT ACTIVITY (Last 5 Orders)
+    // 4. RECENT ACTIVITY
     $stmt = $pdo->query("SELECT o.*, p.product_name FROM orders o 
                          JOIN products p ON o.product_id = p.id 
                          ORDER BY o.created_at DESC LIMIT 5");
     $recentOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 5. CHART DATA (Last 7 Days Sales)
+    // 5. CHART DATA
     $labels = [];
     $values = [];
     for ($i = 6; $i >= 0; $i--) {
@@ -74,43 +69,50 @@ function e($value) {
     <link rel="stylesheet" href="../assets/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* YOUR ORIGINAL CSS */
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 25px; }
         .stat-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; overflow: hidden; transition: transform 0.3s; }
         .stat-card:hover { transform: translateY(-5px); }
         .stat-card h3 { color: #7f8c8d; font-size: 0.9rem; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
         .stat-card .value { font-size: 1.8rem; font-weight: bold; color: #2c3e50; }
         .card-icon { position: absolute; right: -10px; bottom: -10px; font-size: 4.5rem; opacity: 0.07; color: #f28c28; }
-
         .sales-breakdown { display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #f8f9fa; }
         .sales-sub { flex: 1; }
         .sales-sub label { font-size: 0.6rem; color: #95a5a6; display: block; text-transform: uppercase; }
         .sales-sub span { font-size: 0.8rem; font-weight: 600; color: #2c3e50; }
-
         .bottom-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; padding: 0 25px 25px 25px; }
         @media (max-width: 992px) { .bottom-row { grid-template-columns: 1fr; } }
-
         .chart-box, .recent-orders-box { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         .recent-orders-box h2, .chart-box h2 { font-size: 1.1rem; margin-bottom: 20px; color: #2c3e50; display: flex; align-items: center; gap: 10px; }
-        
         .order-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #f8f9fa; }
         .order-row:last-child { border-bottom: none; }
         .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
         .status-pending { background: #fff4e6; color: #f28c28; }
         .status-approved { background: #e6fffa; color: #27ae60; }
         .status-shipped { background: #e3f2fd; color: #1e88e5; }
+
+        /* NEW REPORT BUTTON & DROPDOWN STYLES */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 25px; background: white; border-bottom: 1px solid #eee; }
+        .report-group { position: relative; }
+        .report-btn { background: #f28c28; color: white; padding: 10px 18px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
+        .report-btn:hover { background: #d3761d; }
+        .report-dropdown-content { display: none; position: absolute; right: 0; background-color: white; min-width: 180px; box-shadow: 0px 8px 16px rgba(0,0,0,0.1); z-index: 1000; border-radius: 8px; margin-top: 5px; overflow: hidden; border: 1px solid #eee; }
+        .report-dropdown-content a { color: #2c3e50; padding: 12px 16px; text-decoration: none; display: block; font-size: 0.85rem; transition: 0.2s; }
+        .report-dropdown-content a:hover { background-color: #f8f9fa; color: #f28c28; }
+        .show { display: block; }
     </style>
 </head>
 <body>
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Admin Panel</span></div>
-             <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
+              <nav style="flex-grow: 1;">
+                <a href="index.php" class="nav-item active"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
                 <a href="inventory.php" class="nav-item"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
                 <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
-                <a href="track&reports.php" class="nav-item"><i class="fa-solid fa-route"></i> <span>Track & Reports</span></a>
-                <a href="track_request.php" class="nav-item active"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
-                
+                <a href="inventory_logs.php" class="nav-item "><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
+                <a href="track_request.php" class="nav-item"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
+
                 <a href="view_orders.php" class="nav-item"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
                 <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
@@ -122,9 +124,21 @@ function e($value) {
 
         <main class="main-content">
             <header class="header">
-                <div class="header-left">
+                <div class="header-left" style="display: flex; align-items: center; gap: 15px;">
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
-                    <h1>Management Overview</h1>
+                    <h1 style="margin: 0; font-size: 1.5rem; color: #2c3e50;">Management Overview</h1>
+                </div>
+                <div class="header-right">
+                    <div class="report-group">
+                        <button class="report-btn" onclick="toggleReportMenu()">
+                            <i class="fa-solid fa-file-export"></i> Generate Report <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
+                        </button>
+                        <div id="reportMenu" class="report-dropdown-content">
+                            <a href="../add_products/generate_report.php?format=csv"><i class="fa-solid fa-file-csv"></i> Export as CSV</a>
+                            <a href="../add_products/generate_report.php?format=excel"><i class="fa-solid fa-file-excel"></i> Export as Excel</a>
+                            <a href="../add_products/generate_report.php?format=pdf" target="_blank"><i class="fa-solid fa-file-pdf"></i> View/Print PDF</a>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -195,7 +209,7 @@ function e($value) {
     </div>
 
     <script>
-        // Real Dynamic Chart Logic
+        // Chart.js Logic
         const ctx = document.getElementById('salesTrendChart').getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
         gradient.addColorStop(0, 'rgba(242, 140, 40, 0.4)');
@@ -234,6 +248,21 @@ function e($value) {
         document.getElementById('sidebarToggle').addEventListener('click', () => {
             document.querySelector('.sidebar').classList.toggle('collapsed');
         });
+
+        // Dropdown Toggle
+        function toggleReportMenu() {
+            document.getElementById("reportMenu").classList.toggle("show");
+        }
+
+        // Close dropdown when clicking outside
+        window.onclick = function(event) {
+            if (!event.target.closest('.report-group')) {
+                const dropdowns = document.getElementsByClassName("report-dropdown-content");
+                for (let i = 0; i < dropdowns.length; i++) {
+                    dropdowns[i].classList.remove('show');
+                }
+            }
+        }
     </script>
 </body>
 </html>

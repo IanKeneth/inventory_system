@@ -81,8 +81,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 <div class="input-group">
                     <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
-                    <input type="password" name="password" placeholder="Password" required>
-                    <span class="password-toggle"><i class="fa-regular fa-eye"></i></span>
+                    <input type="password" name="password" id="password" placeholder="Password" required>
+                    <span class="password-toggle" id="togglePassword" style="cursor: pointer;">
+                        <i class="fa-regular fa-eye" id="eyeIcon"></i>
+                    </span>
                 </div>
 
                 <div class="form-options">
@@ -98,5 +100,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
-</body>
+    <script>
+        const togglePassword = document.querySelector('#togglePassword');
+        const passwordField = document.querySelector('#password');
+        const eyeIcon = document.querySelector('#eyeIcon');
+
+        togglePassword.addEventListener('click', function () {
+            // Check the current type of the password input
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            
+            // Change the type (shows/hides the text)
+            passwordField.setAttribute('type', type);
+            
+            // Toggle the FontAwesome icon classes
+            eyeIcon.classList.toggle('fa-eye');
+            eyeIcon.classList.toggle('fa-eye-slash');
+        });
+    </script>
+    </body>
 </html>

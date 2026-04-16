@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 08, 2026 at 02:15 PM
+-- Generation Time: Apr 16, 2026 at 02:20 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -37,19 +37,6 @@ CREATE TABLE `inventory_logs` (
   `cost_per_item` decimal(10,2) DEFAULT 0.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `inventory_logs`
---
-
-INSERT INTO `inventory_logs` (`id`, `product_id`, `type`, `quantity`, `reason`, `created_at`, `cost_per_item`) VALUES
-(1, 3, 'In', 30, 'Initial stock registration', '2026-04-06 13:28:35', 0.00),
-(2, 2, 'In', 1, 'Order #4 Reverted/Cancelled', '2026-04-06 13:44:05', 0.00),
-(3, 2, 'Out', 1, 'Order #4 Approved', '2026-04-06 13:44:13', 0.00),
-(4, 2, 'In', 99, 'Manual Adjustment (Edit Profile)', '2026-04-06 13:59:34', 0.00),
-(5, 2, 'In', 100, 'Manual Adjustment (Edit Profile)', '2026-04-06 14:00:01', 0.00),
-(6, 1, 'In', 91, 'Manual Adjustment', '2026-04-06 14:07:12', 0.00),
-(7, 4, 'In', 23, 'Initial stock registration', '2026-04-08 11:37:56', 0.00),
-(8, 5, 'In', 20, 'Initial stock registration', '2026-04-08 12:14:18', 0.00);
 
 -- --------------------------------------------------------
 
@@ -71,16 +58,6 @@ CREATE TABLE `orders` (
   `encoded_by` varchar(100) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `orders`
---
-
-INSERT INTO `orders` (`order_id`, `product_id`, `customer_name`, `product_name`, `variation`, `quantity`, `total_price`, `status`, `decline_reason`, `estimated_delivery`, `encoded_by`, `created_at`) VALUES
-(1, 1, 'Birondo', '', NULL, 1, 0.00, 'Approved', NULL, '2026-04-01', NULL, '2026-04-01 11:04:13'),
-(2, 2, 'Birondo', '', NULL, 10, 0.00, 'Declined', 'out of stock', '2026-04-30', NULL, '2026-04-01 11:09:54'),
-(3, 3, 'Birondo', '', NULL, 4, 0.00, 'Approved', '', '2026-04-06', NULL, '2026-04-06 13:29:48'),
-(4, 2, 'Birondo', '', NULL, 1, 0.00, 'Approved', '', '2026-04-06', NULL, '2026-04-06 13:37:06');
 
 -- --------------------------------------------------------
 
@@ -104,12 +81,6 @@ CREATE TABLE `products` (
 -- Dumping data for table `products`
 --
 
-INSERT INTO `products` (`id`, `category`, `product_name`, `variation`, `description`, `price`, `quantity`, `max_quantity`, `created_at`) VALUES
-(1, 'Brooms', 'Stiff Broom', 'Standard', 'Hard bristles for outdoor sweeping and rough surfaces.', 1000.00, 100, 100, '2026-04-01 10:45:49'),
-(2, 'Dustpan', 'Dustpan (Medium)', 'Red', 'Standard household dustpan with high-walled sides.', 100.00, 200, 200, '2026-04-01 10:46:33'),
-(3, 'Bucket', 'Plastic Buckets', 'Black', 'Multipurpose heavy-duty bucket with liter markings.', 100.00, 26, 100, '2026-04-06 13:28:35'),
-(4, 'Dustpan', 'Dustpan (Medium)', 'Green', 'Standard household dustpan with high-walled sides.', 120.00, 23, 100, '2026-04-08 11:37:56'),
-(5, 'Bucket', 'Plastic Buckets', 'Red', 'Multipurpose heavy-duty bucket with liter markings.', 120.00, 20, 100, '2026-04-08 12:14:18');
 
 -- --------------------------------------------------------
 
@@ -118,14 +89,43 @@ INSERT INTO `products` (`id`, `category`, `product_name`, `variation`, `descript
 --
 
 CREATE TABLE `suppliers` (
-  `supplier_id` int(11) NOT NULL,
-  `business_name` varchar(255) NOT NULL,
-  `contact_person` varchar(150) NOT NULL,
-  `office_address` text NOT NULL,
-  `item_name` varchar(200) NOT NULL,
-  `quantity` int(12) DEFAULT 0,
+  `id` int(11) NOT NULL,
+  `supplier_name` varchar(255) NOT NULL,
+  `contact_person` varchar(255) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `category` varchar(100) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `suppliers`
+--
+
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `transfer_requests`
+--
+
+CREATE TABLE `transfer_requests` (
+  `id` int(11) NOT NULL,
+  `item_name` varchar(255) NOT NULL,
+  `qty` int(11) NOT NULL,
+  `source_location` varchar(100) DEFAULT NULL,
+  `destination` varchar(100) DEFAULT NULL,
+  `request_date` date DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `status` enum('Pending','Approved','Declined') DEFAULT 'Pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `transfer_requests`
+--
+
+
 
 -- --------------------------------------------------------
 
@@ -139,18 +139,20 @@ CREATE TABLE `users` (
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `role` enum('admin','staff') NOT NULL DEFAULT 'staff',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `profile_pic` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `name`, `email`, `password`, `role`, `created_at`) VALUES
-(1, 'Admin', 'admin@gmail.com', '$2y$10$vpaXJhBcdeUdkIK19xIO.uIW8fPb3.nnY4ZChx.MKuFybdOpMaxvC', 'admin', '2026-03-23 06:47:45'),
-(2, 'birondo', 'birondo@gmail.com', '$2y$10$qvaL4LDGY1zuBvr.C1T7seyFKtL5Dm6B.gjQS4W0VWoYMw.rIddYC', 'admin', '2026-03-23 06:50:08'),
-(9, 'Ian Keneth', 'ian@gmail.com', '$2y$10$lMTKONefHoGgF63H/pwKiuqIj5FeBDOy3U2gXNEuauoFlnanz93La', 'staff', '2026-03-29 02:48:09'),
-(10, 'Renz Percy', 'renz.ui@phinamed.com', '$2y$10$JgV4DI4GEPsyrXKdbHGVG.RNofhmJbKiU3LE7YT8QqX6.wo9St6ru', 'staff', '2026-03-29 13:57:52');
+INSERT INTO `users` (`id`, `name`, `email`, `password`, `role`, `created_at`, `profile_pic`) VALUES
+(1, 'AdminPanel', 'admin@gmail.com', '$2y$10$TBn1.J/2ysRt9RrlfsUPVeG8DDpjclwWtMCpuOLX0/oz97WTNXh9e', 'admin', '2026-03-23 06:47:45', 'admin_1_1776174114.png'),
+(2, 'birondo', 'birondo@gmail.com', '$2y$10$qvaL4LDGY1zuBvr.C1T7seyFKtL5Dm6B.gjQS4W0VWoYMw.rIddYC', 'admin', '2026-03-23 06:50:08', NULL),
+(9, 'Ian Keneth', 'ian@gmail.com', '$2y$10$lMTKONefHoGgF63H/pwKiuqIj5FeBDOy3U2gXNEuauoFlnanz93La', 'staff', '2026-03-29 02:48:09', NULL),
+(10, 'Renz Percy', 'renz.ui@phinamed.com', '$2y$10$JgV4DI4GEPsyrXKdbHGVG.RNofhmJbKiU3LE7YT8QqX6.wo9St6ru', 'staff', '2026-03-29 13:57:52', NULL),
+(11, 'Ian Keneth', 'iama.birondo.ui@phinmaed.com', '$2y$10$fsKVx/1hW3fMmRvPwOFu/e1cck58.xyFFNvaAddztsLdXG55Smbli', 'staff', '2026-04-14 11:19:17', NULL);
 
 --
 -- Indexes for dumped tables
@@ -179,7 +181,13 @@ ALTER TABLE `products`
 -- Indexes for table `suppliers`
 --
 ALTER TABLE `suppliers`
-  ADD PRIMARY KEY (`supplier_id`);
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `transfer_requests`
+--
+ALTER TABLE `transfer_requests`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `users`
@@ -196,31 +204,37 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `inventory_logs`
 --
 ALTER TABLE `inventory_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `suppliers`
 --
 ALTER TABLE `suppliers`
-  MODIFY `supplier_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `transfer_requests`
+--
+ALTER TABLE `transfer_requests`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- Constraints for dumped tables

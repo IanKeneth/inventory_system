@@ -5,23 +5,48 @@ require_once "../auth/conn.php";
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     $customer_name = $_POST['customer_name'];
     $product_id = $_POST['product_id']; 
-    $quantity = $_POST['quantity'];
-    $status = 'Pending'; // Default for new staff entries
+    $quantity = (int)$_POST['quantity'];
+    $status = 'Pending'; 
     $delivery = $_POST['estimated_delivery'];
 
-    $sql = "INSERT INTO orders (product_id, customer_name, quantity, status, estimated_delivery) VALUES (?, ?, ?, ?, ?)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$product_id, $customer_name, $quantity, $status, $delivery]);
+    // 1. Fetch the product details first to get the name, price, and variation
+    $stmt_product = $pdo->prepare("SELECT product_name, price, variation FROM products WHERE id = ?");
+    $stmt_product->execute([$product_id]);
+    $product_info = $stmt_product->fetch();
 
-    header("Location: orders.php?success=1");
-    exit();
+    if ($product_info) {
+        $product_name = $product_info['product_name'];
+        $variation = $product_info['variation'];
+        $unit_price = $product_info['price'];
+        
+        // 2. Calculate the total price based on quantity
+        $total_price = $unit_price * $quantity;
+
+        // 3. Insert into database with all fields populated
+        $sql = "INSERT INTO orders (product_id, product_name, variation, customer_name, quantity, total_price, status, estimated_delivery) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $product_id, 
+            $product_name, 
+            $variation, 
+            $customer_name, 
+            $quantity, 
+            $total_price, 
+            $status, 
+            $delivery
+        ]);
+
+        header("Location: orders.php?success=1");
+        exit();
+    }
 }
 
-// Fetch Products
+// Fetch Products for the dropdown
 $all_products = $pdo->query("SELECT id, product_name, price FROM products")->fetchAll();
 
-// FIXED SQL QUERY: Pulling 'category' directly from the 'products' table (p.category)
-$all_orders = $pdo->query("SELECT o.*, p.product_name, p.price, p.category 
+// Fetch Orders for the table (JOIN to get product info for display)
+$all_orders = $pdo->query("SELECT o.*, p.category, p.price as unit_price 
                             FROM orders o 
                             JOIN products p ON o.product_id = p.id 
                             ORDER BY o.created_at DESC")->fetchAll();
@@ -42,7 +67,6 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price, p.category
         .orders-table th { border: 1px solid #ddd; padding: 15px; background-color: #fffdfa; color: #333; font-size: 0.9rem; }
         .orders-table td { border: 1px solid #ddd; padding: 12px; text-align: center; font-size: 0.85rem; }
         
-        /* Status Colors */
         .status-Approved { color: #27ae60; font-weight: bold; }
         .status-Pending { color: #e67e22; font-weight: bold; }
         .status-Delivered { color: #2c3e50; font-weight: bold; }
@@ -66,7 +90,7 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price, p.category
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Orders</span></div>
             <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
-                 <a href="user_inventory.php" class="nav-item">
+                <a href="user_inventory.php" class="nav-item">
                     <i class="fa-solid fa-right-left"></i> <span>User Inventory</span>
                 </a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
@@ -111,7 +135,6 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price, p.category
                     </thead>
                     <tbody>
                         <?php foreach ($all_orders as $row): 
-                            $total_price = $row['quantity'] * $row['price'];
                             $status_text = !empty($row['status']) ? $row['status'] : 'Pending';
                         ?>
                         <tr>
@@ -119,9 +142,9 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.price, p.category
                             <td><?= htmlspecialchars($row['customer_name']) ?></td>
                             <td><span class="category-badge"><?= htmlspecialchars($row['category'] ?? 'N/A') ?></span></td>
                             <td><?= htmlspecialchars($row['product_name']) ?></td>
-                            <td>₱<?= number_format($row['price'], 2) ?></td>
+                            <td>₱<?= number_format($row['unit_price'], 2) ?></td>
                             <td><?= $row['quantity'] ?></td>
-                            <td class="total-price">₱<?= number_format($total_price, 2) ?></td>
+                            <td class="total-price">₱<?= number_format($row['total_price'], 2) ?></td>
                             <td>
                                 <span class="status-<?= $status_text ?>"><?= $status_text ?></span>
                                 <?php if($status_text === 'Declined' && !empty($row['decline_reason'])): ?>

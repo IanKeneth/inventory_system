@@ -1,20 +1,40 @@
 <?php
 session_start();
-require_once "../auth/conn.php";
+require_once "../auth/conn.php"; // Defines $pdo
 
-// Fetch staff details from session
-$user_id = $_SESSION['user_id'] ?? null;
-$user_name = $_SESSION['user_name'] ?? "Staff Member";
-$user_email = $_SESSION['user_email'] ?? "staff@example.com";
-
-if (!$user_id) {
+// 1. Check if session exists
+if (!isset($_SESSION['user_id'])) {
     header("Location: ../app/login.php");
     exit();
 }
+
+$user_id = $_SESSION['user_id'];
+
+try {
+    // 2. Fetch data using PDO
+    $stmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$user_id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // 3. SECURE CONDITIONING: If the user doesn't exist in the DB, kill the session
+    if (!$user) {
+        session_destroy();
+        header("Location: ../app/login.php?error=account_not_found");
+        exit();
+    }
+
+    // Now it is safe to assign these
+    $user_name = $user['name'];
+    $user_email = $user['email'];
+
+} catch (PDOException $e) {
+    // Handle database errors securely (don't show full error to users in production)
+    die("A database error occurred. Please try again later.");
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,20 +53,15 @@ if (!$user_id) {
         .input-group { flex-grow: 1; display: flex; flex-direction: column; gap: 8px; }
         .input-wrapper { position: relative; }
         .input-wrapper i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #888; font-size: 0.85rem; }
-        .settings-input { width: 100%; padding: 8px 10px 8px 32px; border: 1px solid #e0ddd0; border-radius: 8px; box-sizing: border-box; font-size: 0.85rem; background: #fff; }
+        .input-wrapper .toggle-eye { left: auto; right: 10px; cursor: pointer; }
+        .settings-input { width: 100%; padding: 8px 35px 8px 32px; border: 1px solid #e0ddd0; border-radius: 8px; box-sizing: border-box; font-size: 0.85rem; background: #fff; }
         .card-title { font-size: 0.9rem; font-weight: bold; color: #444; margin-bottom: 10px; display: block; }
-        .notification-sub { font-size: 0.8rem; font-weight: bold; color: #333; margin: 10px 0 5px 0; }
-        .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .toggle-item { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #555; }
-        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
-        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #f28c28; }
-        input:checked + .slider:before { transform: translateX(16px); }
         .permissions-area { border: 1px solid #e0ddd0; border-radius: 8px; margin-top: 5px; background: #f9f9f9; padding: 12px; font-size: 0.8rem; color: #666; }
         .btn-row { display: flex; justify-content: flex-end; margin-top: 10px; }
         .apply-btn { background: #f28c28; color: white; border: none; padding: 8px 25px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+        .alert { padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 </head>
 
@@ -55,12 +70,10 @@ if (!$user_id) {
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Staff Panel</span></div>
             <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
-                 <a href="user_inventory.php" class="nav-item">
-                    <i class="fa-solid fa-right-left"></i> <span>User Inventory</span>
-                </a>
+                <a href="index.php" class="nav-item"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
-                <a href="orders.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
+                <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
                 <a href="settings.php" class="nav-item active"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
         </aside>
@@ -75,7 +88,14 @@ if (!$user_id) {
             </header>
 
             <section class="settings-container">
-                <form action="../app/update_staff_profile.php" method="POST">
+                <?php if (isset($_SESSION['success'])): ?>
+                    <div class="alert alert-success"><?php echo $_SESSION['success']; unset($_SESSION['success']); ?></div>
+                <?php endif; ?>
+                <?php if (isset($_SESSION['error'])): ?>
+                    <div class="alert alert-error"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></div>
+                <?php endif; ?>
+
+                <form action="../update_staff_profile.php" method="POST">
                     <div style="display: flex; flex-direction: column; gap: 15px;">
 
                         <div class="settings-card">
@@ -88,11 +108,11 @@ if (!$user_id) {
                                 <div class="input-group">
                                     <div class="input-wrapper">
                                         <i class="fa-solid fa-user"></i>
-                                        <input type="text" name="full_name" class="settings-input" value="<?= htmlspecialchars($user_name) ?>">
+                                        <input type="text" name="full_name" class="settings-input" value="<?= htmlspecialchars($user_name) ?>" required>
                                     </div>
                                     <div class="input-wrapper">
                                         <i class="fa-solid fa-envelope"></i>
-                                        <input type="email" name="email" class="settings-input" value="<?= htmlspecialchars($user_email) ?>">
+                                        <input type="email" name="email" class="settings-input" value="<?= htmlspecialchars($user_email) ?>" required>
                                     </div>
                                 </div>
                             </div>
@@ -102,28 +122,18 @@ if (!$user_id) {
                             <span class="card-title">Update Password</span>
                             <div class="input-wrapper" style="margin-bottom: 8px;">
                                 <i class="fa-solid fa-lock"></i>
-                                <input type="password" name="curr_pass" class="settings-input" placeholder="Current Password">
+                                <input type="password" name="curr_pass" class="settings-input pass-input" placeholder="Current Password">
+                                <i class="fa-regular fa-eye toggle-eye"></i>
                             </div>
                             <div class="input-wrapper" style="margin-bottom: 8px;">
                                 <i class="fa-solid fa-lock"></i>
-                                <input type="password" name="new_pass" class="settings-input" placeholder="New Password">
+                                <input type="password" name="new_pass" class="settings-input pass-input" placeholder="New Password">
+                                <i class="fa-regular fa-eye toggle-eye"></i>
                             </div>
                             <div class="input-wrapper">
                                 <i class="fa-solid fa-lock"></i>
-                                <input type="password" name="conf_pass" class="settings-input" placeholder="Confirm New Password">
-                            </div>
-                        </div>
-
-                        <div class="settings-card">
-                            <span class="card-title">Your Access Level</span>
-                            <div class="permissions-area">
-                                <strong style="color: #f28c28;">Role: Staff Member</strong>
-                                <ul style="margin: 8px 0 0 18px; padding: 0;">
-                                    <li>View Dashboard statistics</li>
-                                    <li>Process Transfer Requests</li>
-                                    <li>Manage Customer Orders</li>
-                                    <li style="color: #999;">Restricted: Financial Reports & User Management</li>
-                                </ul>
+                                <input type="password" name="conf_pass" class="settings-input pass-input" placeholder="Confirm New Password">
+                                <i class="fa-regular fa-eye toggle-eye"></i>
                             </div>
                         </div>
 
@@ -137,10 +147,25 @@ if (!$user_id) {
     </div>
 
     <script>
+        // Sidebar Toggle logic
         const sidebar = document.querySelector('.sidebar');
         const toggleBtn = document.getElementById('sidebarToggle');
         toggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
+        });
+
+        // Eye Icon Logic
+        document.querySelectorAll('.toggle-eye').forEach(eye => {
+            eye.addEventListener('click', function() {
+                const input = this.parentElement.querySelector('.pass-input');
+                if (input.type === "password") {
+                    input.type = "text";
+                    this.classList.replace('fa-eye', 'fa-eye-slash');
+                } else {
+                    input.type = "password";
+                    this.classList.replace('fa-eye-slash', 'fa-eye');
+                }
+            });
         });
     </script>
 </body>

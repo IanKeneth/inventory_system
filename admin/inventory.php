@@ -63,13 +63,13 @@ function e($value) {
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Inventory System</span></div>
-              <nav style="flex-grow: 1;">
+            <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
-                <a href="inventory.php" class="nav-item"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
+                <a href="inventory.php" class="nav-item active"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
                 <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
-                <a href="track&reports.php" class="nav-item"><i class="fa-solid fa-route"></i> <span>Track & Reports</span></a>
-                <a href="track_request.php" class="nav-item active"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
-                
+                <a href="inventory_logs.php" class="nav-item "><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
+                <a href="track_request.php" class="nav-item"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
+
                 <a href="view_orders.php" class="nav-item"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
                 <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
@@ -129,7 +129,12 @@ function e($value) {
                                             <small><?= round($percent) ?>%</small>
                                         </div>
                                     </td>
-                                    <td><a href="../add_products/edit_product.php?id=<?= $product['id'] ?>" style="color:#f28c28;"><i class="fa-solid fa-pen-to-square"></i></a></td>
+                                    <td>
+                                        <a href="../add_products/edit_product.php?id=<?= $product['id'] ?>" style="color:#f28c28;"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <a href="javascript:void(0)" onclick="confirmDelete(<?= $product['id'] ?>)" style="color:#e74c3c; margin-left: 10px;">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </a>
+                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -194,6 +199,31 @@ function e($value) {
     </div>
 
     <script>
+        window.onload = function() {
+        // 2. Check the URL for parameters
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // 3. If "error=duplicate" is in the URL, show the alert
+        if (urlParams.get('error') === 'duplicate') {
+            alert("❌ Duplicate Product: This item name and variation already exist in this category!");
+            
+            // Optional: Clean the URL so the alert doesn't pop up again on refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // 4. If "success=1" is in the URL, show a success alert
+        if (urlParams.get('success') === '1') {
+            alert("✅ Product added successfully!");
+            window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        };
+
+
+            function confirmDelete(id) {
+            if (confirm("Are you sure you want to delete this product? This will also remove its history logs.")) {
+                window.location.href = "../add_products/delete_product.php?id=" + id;
+            }
+        }
         function openForm() { document.getElementById("popupForm").style.display = "flex"; }
         function closeForm() { document.getElementById("popupForm").style.display = "none"; }
         

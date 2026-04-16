@@ -94,17 +94,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <input type="email" name="email" placeholder="Email Address" required>
                 </div>
 
-                <div class="input-group">
+                <div class="input-group" style="position: relative; display: flex; align-items: center;">
                     <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
-                    <input type="password" name="password" placeholder="Password" required>
+                    <input type="password" name="password" id="password" placeholder="Password" required style="padding-right: 40px; width: 100%;">
+                    <span class="password-toggle" id="togglePassword" style="position: absolute; right: 15px; cursor: pointer; color: #666;">
+                        <i class="fa-regular fa-eye" id="eyeIcon1"></i>
+                    </span>
                 </div>
 
-                <div class="input-group">
+                <div class="input-group" style="position: relative; display: flex; align-items: center; margin-top: 15px;">
                     <span class="input-icon"><i class="fa-solid fa-shield-halved"></i></span>
-                    <input type="password" name="confirm_password"   placeholder="Confirm Password" required>
+                    <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required style="padding-right: 40px; width: 100%;">
+                    <span class="password-toggle" id="toggleConfirmPassword" style="position: absolute; right: 15px; cursor: pointer; color: #666;">
+                        <i class="fa-regular fa-eye" id="eyeIcon2"></i>
+                    </span>
                 </div>
 
-                <button type="submit" class="btn-primary">Register Now</button>
+                <button type="submit" class="btn-primary" style="margin-top: 20px;">Register Now</button>
             </form>
 
             <div class="auth-footer">
@@ -112,6 +118,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
     </div>
+
+    <script>
+        function setupToggle(toggleId, inputId, iconId) {
+            const toggle = document.getElementById(toggleId);
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+
+            toggle.addEventListener('click', function() {
+                const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                input.setAttribute('type', type);
+                icon.classList.toggle('fa-eye');
+                icon.classList.toggle('fa-eye-slash');
+            });
+        }
+
+        setupToggle('togglePassword', 'password', 'eyeIcon1');
+        setupToggle('toggleConfirmPassword', 'confirm_password', 'eyeIcon2');
+    </script>
 
 </body>
 </html>

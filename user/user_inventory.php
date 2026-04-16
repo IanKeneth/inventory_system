@@ -3,7 +3,7 @@ session_start();
 require_once '../auth/conn.php'; 
 
 // Role Protection: Keep this to prevent session sharing issues
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: ../auth/login.php");
     exit();
 }
