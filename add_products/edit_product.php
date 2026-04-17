@@ -1,6 +1,6 @@
 <?php 
 require_once "../auth/conn.php";  
-/** @var PDO $pdo */ // This tells the editor that $pdo is a PDO object
+/** @var PDO $pdo */ 
 
 function e($value) { 
     return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8'); 
@@ -13,7 +13,6 @@ if (!$id) {
     exit; 
 } 
 
-// Fetch current product data first to compare quantities
 $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
 $stmt->execute([$id]);
 $product = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -30,7 +29,7 @@ if (isset($_POST['update_product'])) {
     $max_quantity = (int)$_POST['max_quantity']; 
     $old_quantity = (int)$product['quantity'];
 
-    // 1. Validation
+
     if ($new_quantity > $max_quantity) { 
         echo "<script>
                 alert('Error: Quantity ($new_quantity) cannot be greater than Max Quantity ($max_quantity)!');
@@ -42,7 +41,6 @@ if (isset($_POST['update_product'])) {
     try {
         $pdo->beginTransaction();
 
-        // 2. Update Product Details
         $sql = "UPDATE products 
                 SET product_name = :name, category = :cat, price = :price, 
                     quantity = :qty, max_quantity = :max 
@@ -58,7 +56,7 @@ if (isset($_POST['update_product'])) {
             ':id'    => $id
         ]);
 
-        // 3. LOGIC: Create a log if the quantity was changed manually
+
         if ($new_quantity !== $old_quantity) {
             $diff = abs($new_quantity - $old_quantity);
             $type = ($new_quantity > $old_quantity) ? 'In' : 'Out';
@@ -79,7 +77,7 @@ if (isset($_POST['update_product'])) {
         echo "<script>
                 alert('Product updated successfully!');
                 window.location.href='../admin/inventory.php';
-              </script>"; 
+                </script>"; 
         exit;
 
     } catch (Exception $e) {

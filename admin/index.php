@@ -2,57 +2,50 @@
 session_start();
 require_once '../auth/conn.php'; 
 
-// Role Protection
+/** @var PDO $pdo */
+
+
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../auth/login.php");
     exit();
 }
 
 try {
-    // 1. CALCULATE REVENUE
-    $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved'");
-    $totalSales = $stmt->fetch()['total'] ?? 0;
+   
+    $totalSales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved'")->fetchColumn();
+    $dailySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND DATE(created_at) = CURDATE()")->fetchColumn();
+    $monthlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
+    $yearlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
 
-    $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved' AND DATE(created_at) = CURDATE()");
-    $dailySales = $stmt->fetch()['total'] ?? 0;
-
-    $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())");
-    $monthlySales = $stmt->fetch()['total'] ?? 0;
-
-    $stmt = $pdo->query("SELECT SUM(total_price) as total FROM orders WHERE status = 'Approved' AND YEAR(created_at) = YEAR(CURDATE())");
-    $yearlySales = $stmt->fetch()['total'] ?? 0;
 
     $stmt = $pdo->query("SELECT DATEDIFF(CURDATE(), MIN(created_at)) as days FROM orders");
     $daysSinceStart = $stmt->fetch()['days'] ?? 0;
 
-    // 2. ACTIVE PRODUCTS COUNT
-    $stmt = $pdo->query("SELECT COUNT(*) FROM products");
-    $productCount = $stmt->fetchColumn();
+ 
+    $productCount = $pdo->query("SELECT COUNT(*) FROM products")->fetchColumn();
+    $lowStockCount = $pdo->query("SELECT COUNT(*) FROM products WHERE (quantity / max_quantity) * 100 <= 15")->fetchColumn();
 
-    // 3. LOW STOCK ALERTS
-    $stmt = $pdo->query("SELECT COUNT(*) FROM products WHERE (quantity / max_quantity) * 100 <= 15");
-    $lowStockCount = $stmt->fetchColumn();
 
-    // 4. RECENT ACTIVITY
     $stmt = $pdo->query("SELECT o.*, p.product_name FROM orders o 
-                         JOIN products p ON o.product_id = p.id 
-                         ORDER BY o.created_at DESC LIMIT 5");
+                        JOIN products p ON o.product_id = p.id 
+                        ORDER BY o.created_at DESC LIMIT 5");
     $recentOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 5. CHART DATA
+   
     $labels = [];
     $values = [];
     for ($i = 6; $i >= 0; $i--) {
-        $date = date('Y-m-d', strtotime("-$i days"));
-        $labels[] = date('D', strtotime($date));
+        $date = date('Y-m-d', strtotime("-$i Month"));
+        $labels[] = date('M Y ', strtotime($date));
         
-        $stmt = $pdo->prepare("SELECT SUM(total_price) FROM orders WHERE DATE(created_at) = ? AND status = 'Approved'");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE DATE(created_at) = ? AND status = 'Approved'");
         $stmt->execute([$date]);
-        $values[] = $stmt->fetchColumn() ?? 0;
+        $values[] = $stmt->fetchColumn();
     }
 
 } catch (PDOException $e) {
-    die("Database Error: " . $e->getMessage());
+    error_log("Dashboard Database Error: " . $e->getMessage());
+    die("<div style='padding:50px; text-align:center; font-family:sans-serif;'><h2>⚠️ System Maintenance</h2><p>We are currently experiencing database issues. Please try again later.</p></div>");
 }
 
 function e($value) {
@@ -69,7 +62,6 @@ function e($value) {
     <link rel="stylesheet" href="../assets/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* YOUR ORIGINAL CSS */
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 25px; }
         .stat-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; overflow: hidden; transition: transform 0.3s; }
         .stat-card:hover { transform: translateY(-5px); }
@@ -90,8 +82,6 @@ function e($value) {
         .status-pending { background: #fff4e6; color: #f28c28; }
         .status-approved { background: #e6fffa; color: #27ae60; }
         .status-shipped { background: #e3f2fd; color: #1e88e5; }
-
-        /* NEW REPORT BUTTON & DROPDOWN STYLES */
         .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 25px; background: white; border-bottom: 1px solid #eee; }
         .report-group { position: relative; }
         .report-btn { background: #f28c28; color: white; padding: 10px 18px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
@@ -106,13 +96,12 @@ function e($value) {
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Admin Panel</span></div>
-              <nav style="flex-grow: 1;">
+            <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item active"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
                 <a href="inventory.php" class="nav-item"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
                 <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
-                <a href="inventory_logs.php" class="nav-item "><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
+                <a href="inventory_logs.php" class="nav-item"><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
                 <a href="track_request.php" class="nav-item"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
-
                 <a href="view_orders.php" class="nav-item"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
                 <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
@@ -150,11 +139,11 @@ function e($value) {
                         <div class="sales-sub"><label>Daily</label><span>₱<?= number_format($dailySales) ?></span></div>
                         <div class="sales-sub">
                             <label>Monthly</label>
-                            <span>₱<?= $daysSinceStart >= 30 ? number_format($monthlySales) : '---' ?></span>
+                            <span><?= $daysSinceStart >= 30 ? '₱'.number_format($monthlySales) : 'Pending' ?></span>
                         </div>
                         <div class="sales-sub">
                             <label>Yearly</label>
-                            <span>₱<?= $daysSinceStart >= 365 ? number_format($yearlySales) : '---' ?></span>
+                            <span><?= $daysSinceStart >= 365 ? '₱'.number_format($yearlySales) : 'Pending' ?></span>
                         </div>
                     </div>
                     <i class="fa-solid fa-sack-dollar card-icon"></i>
@@ -209,7 +198,6 @@ function e($value) {
     </div>
 
     <script>
-        // Chart.js Logic
         const ctx = document.getElementById('salesTrendChart').getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
         gradient.addColorStop(0, 'rgba(242, 140, 40, 0.4)');
@@ -229,32 +217,33 @@ function e($value) {
                     tension: 0.4,
                     pointRadius: 4,
                     pointBackgroundColor: '#fff',
-                    pointBorderColor: '#f28c28',
-                    pointHoverRadius: 6
+                    pointBorderColor: '#f28c28'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { 
-                    y: { beginAtZero: true, grid: { borderDash: [5, 5] }, ticks: { callback: v => '₱' + v } },
-                    x: { grid: { display: false } }
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        // --- ADD OR CHANGE THESE THREE LINES ---
+                        suggestedMax: 1000,   // Sets a minimum "ceiling" so 0 doesn't look weird
+                        ticks: {
+                            precision: 0,      // Forces the chart to use whole numbers only
+                            callback: function(value) {
+                                return '₱' + value.toLocaleString(); // Adds the Peso sign and commas
+                            }
+                        }
+                        // ---------------------------------------
+                    }
                 }
             }
         });
 
-        // Sidebar Toggle
-        document.getElementById('sidebarToggle').addEventListener('click', () => {
-            document.querySelector('.sidebar').classList.toggle('collapsed');
-        });
-
-        // Dropdown Toggle
         function toggleReportMenu() {
             document.getElementById("reportMenu").classList.toggle("show");
         }
 
-        // Close dropdown when clicking outside
         window.onclick = function(event) {
             if (!event.target.closest('.report-group')) {
                 const dropdowns = document.getElementsByClassName("report-dropdown-content");

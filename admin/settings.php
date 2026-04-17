@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 try {
-    // We fetch fresh data so a refresh ALWAYS shows the latest DB info
+    
     $stmt = $pdo->prepare("SELECT name, email, profile_pic FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([$user_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);

@@ -1,8 +1,7 @@
 <?php
 session_start();
-require_once "../auth/conn.php"; // Defines $pdo
+require_once "../auth/conn.php"; 
 
-// 1. Check if session exists
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../app/login.php");
     exit();
@@ -11,24 +10,21 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 try {
-    // 2. Fetch data using PDO
+
     $stmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([$user_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // 3. SECURE CONDITIONING: If the user doesn't exist in the DB, kill the session
     if (!$user) {
         session_destroy();
         header("Location: ../app/login.php?error=account_not_found");
         exit();
     }
 
-    // Now it is safe to assign these
     $user_name = $user['name'];
     $user_email = $user['email'];
 
 } catch (PDOException $e) {
-    // Handle database errors securely (don't show full error to users in production)
     die("A database error occurred. Please try again later.");
 }
 ?>
@@ -69,12 +65,14 @@ try {
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Staff Panel</span></div>
-            <nav style="flex-grow: 1;">
+              <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
                 <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
+                <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
                 <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
-                <a href="settings.php" class="nav-item active"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
+                <a href="sales.php" class="nav-item active"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
         </aside>
 
@@ -147,14 +145,13 @@ try {
     </div>
 
     <script>
-        // Sidebar Toggle logic
+        
         const sidebar = document.querySelector('.sidebar');
         const toggleBtn = document.getElementById('sidebarToggle');
         toggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
         });
 
-        // Eye Icon Logic
         document.querySelectorAll('.toggle-eye').forEach(eye => {
             eye.addEventListener('click', function() {
                 const input = this.parentElement.querySelector('.pass-input');

@@ -7,7 +7,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 
-// Search Logic
 $search = trim($_GET['search'] ?? '');
 $params = [];
 $whereSQL = "";

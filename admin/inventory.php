@@ -2,13 +2,11 @@
 session_start();
 require_once '../auth/conn.php'; 
 
-// Role Protection: Keep this to prevent session sharing issues
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../auth/login.php");
     exit();
 }
 
-// Fetch all products
 $all_products = [];
 try {
     $stmt = $pdo->prepare("SELECT * FROM products ORDER BY id DESC"); 
@@ -112,7 +110,7 @@ function e($value) {
                                     $percent = ($max > 0) ? ($current / $max) * 100 : 0;
                                     $health_color = ($percent <= 15) ? '#e74c3c' : '#2ecc71';
                                     
-                                    // Fix for Description display
+                                    
                                     $description = !empty($product['description']) ? e($product['description']) : '<i style="color:#ccc;">No description</i>';
                                 ?>
                                 <tr id="row-<?= $product['id'] ?>">
@@ -200,18 +198,16 @@ function e($value) {
 
     <script>
         window.onload = function() {
-        // 2. Check the URL for parameters
         const urlParams = new URLSearchParams(window.location.search);
 
-        // 3. If "error=duplicate" is in the URL, show the alert
         if (urlParams.get('error') === 'duplicate') {
             alert("❌ Duplicate Product: This item name and variation already exist in this category!");
             
-            // Optional: Clean the URL so the alert doesn't pop up again on refresh
+            
             window.history.replaceState({}, document.title, window.location.pathname);
         }
 
-        // 4. If "success=1" is in the URL, show a success alert
+    
         if (urlParams.get('success') === '1') {
             alert("✅ Product added successfully!");
             window.history.replaceState({}, document.title, window.location.pathname);

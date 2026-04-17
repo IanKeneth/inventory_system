@@ -10,12 +10,8 @@ $format = $_GET['format'] ?? 'csv';
 $filename = "Sales_Report_" . date('Y-m-d');
 
 try {
-    // Fetch Order Data
-    $stmt = $pdo->query("SELECT o.*, p.product_name 
-                         FROM orders o 
-                         JOIN products p ON o.product_id = p.id 
-                         WHERE o.status = 'Approved' 
-                         ORDER BY o.created_at DESC");
+    $stmt = $pdo->query("SELECT o.*, p.product_name FROM orders o 
+        JOIN products p ON o.product_id = p.id WHERE o.status = 'Approved' ORDER BY o.created_at DESC");
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if ($format === 'excel' || $format === 'csv') {

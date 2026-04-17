@@ -8,10 +8,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['role'] === 'admin') {
     $email = trim($_POST['email']);
     $phone = trim($_POST['phone']);
     $category = $_POST['category'];
-    $products = trim($_POST['products_supplied']); // New Field
+    $products = trim($_POST['products_supplied']); 
 
     try {
-        // Check for duplicates
         $stmt = $pdo->prepare("SELECT id FROM suppliers WHERE LOWER(supplier_name) = LOWER(?)");
         $stmt->execute([$name]);
         

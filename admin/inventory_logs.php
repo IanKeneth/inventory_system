@@ -5,7 +5,7 @@ require_once "../auth/conn.php";
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'All';
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 
-// --- DATABASE LOGIC ---
+
 $whereClauses = [];
 if ($filter === 'In') {
     $whereClauses[] = "il.type = 'In'";
@@ -39,20 +39,20 @@ if (!empty($search)) {
 $stmt->execute();
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// --- EXPORT LOGIC (Must be before any HTML) ---
+
 if (isset($_GET['export']) && $_GET['export'] === 'excel') {
     $filename = "Inventory_Report_" . date('Y-m-d_His') . ".csv";
     
-    // Set headers to force download as Excel/CSV
+
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=' . $filename);
     
     $output = fopen('php://output', 'w');
     
-    // Column Headers
+
     fputcsv($output, ['Timestamp', 'Product Name', 'Variation', 'Movement Type', 'Quantity', 'Reference Note']);
     
-    // Data Rows
+
     foreach ($logs as $row) {
         fputcsv($output, [
             $row['created_at'],
@@ -64,10 +64,9 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
         ]);
     }
     fclose($output);
-    exit; // Stop executing to prevent HTML from being added to the file
+    exit; 
 }
 
-// Totals calculation
 $totalIn = $pdo->query("SELECT SUM(quantity) FROM inventory_logs WHERE type = 'In'")->fetchColumn() ?? 0;
 $totalOut = $pdo->query("SELECT SUM(quantity) FROM inventory_logs WHERE type = 'Out'")->fetchColumn() ?? 0;
 $netStock = $totalIn - $totalOut;

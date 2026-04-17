@@ -2,13 +2,11 @@
 session_start();
 require_once '../auth/conn.php'; 
 
-// Role Protection: Keep this to prevent session sharing issues
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../auth/login.php");
     exit();
 }
 
-// Fetch all products
 $all_products = [];
 try {
     $stmt = $pdo->prepare("SELECT * FROM products ORDER BY id DESC"); 
@@ -63,15 +61,13 @@ function e($value) {
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Inventory System</span></div>
-             <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
-                 <a href="user_inventory.php" class="nav-item">
-                    <i class="fa-solid fa-right-left"></i> <span>User Inventory</span>
-                </a>
+              <nav style="flex-grow: 1;">
+                <a href="index.php" class="nav-item"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
-                <a href="basic_reports.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
-                <a href="orders.php" class="nav-item active"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
-                <a href="sales.php" class="nav-item"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
+                <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
+                <a href="sales.php" class="nav-item active"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
             <div class="sidebar-footer">
@@ -101,7 +97,7 @@ function e($value) {
                                 <th>Price</th>
                                 <th>Qty</th>
                                 <th>Health</th>
-                            
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -112,7 +108,7 @@ function e($value) {
                                     $percent = ($max > 0) ? ($current / $max) * 100 : 0;
                                     $health_color = ($percent <= 15) ? '#e74c3c' : '#2ecc71';
                                     
-                                    // Fix for Description display
+                                    
                                     $description = !empty($product['description']) ? e($product['description']) : '<i style="color:#ccc;">No description</i>';
                                 ?>
                                 <tr id="row-<?= $product['id'] ?>">
@@ -129,7 +125,12 @@ function e($value) {
                                             <small><?= round($percent) ?>%</small>
                                         </div>
                                     </td>
-            
+                                    <td>
+                                        <a href="../add_products/edit_product.php?id=<?= $product['id'] ?>" style="color:#f28c28;"><i class="fa-solid fa-pen-to-square"></i></a>
+                                        <a href="javascript:void(0)" onclick="confirmDelete(<?= $product['id'] ?>)" style="color:#e74c3c; margin-left: 10px;">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </a>
+                                    </td>
                                 </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -194,6 +195,29 @@ function e($value) {
     </div>
 
     <script>
+        window.onload = function() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        if (urlParams.get('error') === 'duplicate') {
+            alert("❌ Duplicate Product: This item name and variation already exist in this category!");
+            
+            
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+    
+        if (urlParams.get('success') === '1') {
+            alert("✅ Product added successfully!");
+            window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        };
+
+
+            function confirmDelete(id) {
+            if (confirm("Are you sure you want to delete this product? This will also remove its history logs.")) {
+                window.location.href = "../add_products/delete_product.php?id=" + id;
+            }
+        }
         function openForm() { document.getElementById("popupForm").style.display = "flex"; }
         function closeForm() { document.getElementById("popupForm").style.display = "none"; }
         

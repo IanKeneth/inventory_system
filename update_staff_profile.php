@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once "auth/conn.php"; // Ensure this defines $pdo
+require_once "auth/conn.php"; 
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $user_id = $_SESSION['user_id'];
@@ -11,15 +11,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $conf_pass = $_POST['conf_pass'];
 
     try {
-        // 1. Update Name and Email
         $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ? WHERE id = ?");
         $stmt->execute([$full_name, $email, $user_id]);
         
         $_SESSION['success'] = "Profile updated!";
-        // Keep session in sync
         $_SESSION['user_name'] = $full_name;
-
-        // 2. Handle Password Change
         if (!empty($curr_pass)) {
             $query = $pdo->prepare("SELECT password FROM users WHERE id = ?");
             $query->execute([$user_id]);

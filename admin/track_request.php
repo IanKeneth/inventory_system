@@ -2,7 +2,7 @@
 session_start();
 require_once "../auth/conn.php";
 
-// 1. Handle Approval or Decline Actions
+
 if (isset($_GET['action']) && isset($_GET['id'])) {
     $id = $_GET['id'];
     $action = $_GET['action'];
@@ -13,7 +13,7 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         $stmt = $pdo->prepare($updateSql);
         $stmt->execute([$newStatus, $id]);
         
-        // Redirect to refresh and remove GET parameters from URL
+    
         header("Location: track_request.php?msg=Status Updated");
         exit();
     } catch (PDOException $e) {
@@ -21,7 +21,7 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     }
 }
 
-// 2. Fetch all requests (Pending first, then by date)
+
 try {
     $query = "SELECT * FROM transfer_requests ORDER BY FIELD(status, 'Pending', 'Approved', 'Declined'), created_at DESC";
     $stmt = $pdo->query($query);

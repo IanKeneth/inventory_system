@@ -10,11 +10,8 @@ if (!isset($_SESSION['user_id'])) {
 try {
     // Real-world query: Joining products to get prices and calculating totals
     $query = "SELECT o.order_id, p.product_name, o.customer_name, o.quantity, p.price, 
-                     (o.quantity * p.price) AS total_amount, o.created_at 
-              FROM orders o
-              JOIN products p ON o.product_id = p.id 
-              WHERE o.status IN ('Approved', 'Delivered') 
-              ORDER BY o.created_at ASC";
+            (o.quantity * p.price) AS total_amount, o.created_at FROM orders o
+            JOIN products p ON o.product_id = p.id WHERE o.status IN ('Approved', 'Delivered') ORDER BY o.created_at ASC";
         
     $stmt = $pdo->query($query);
     $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -171,7 +168,6 @@ try {
     </div>
 
     <script>
-        // 1. DROPDOWN TOGGLE
         const reportBtn = document.getElementById('reportDropdownBtn');
         const dropdown = document.getElementById('reportDropdown');
 
@@ -184,7 +180,6 @@ try {
             if (dropdown.classList.contains('show')) dropdown.classList.remove('show');
         });
 
-        // 2. EXCEL EXPORT
         document.getElementById('exportExcel').addEventListener('click', function() {
             let table = document.getElementById("salesTable");
             TableToExcel.convert(table, {
@@ -192,8 +187,6 @@ try {
                 sheet: { name: "Approved Sales" }
             });
         });
-
-        // 3. PDF EXPORT
         document.getElementById('exportPDF').addEventListener('click', function() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -211,7 +204,6 @@ try {
             doc.save(`Sales_Report_<?= date('Y-m-d') ?>.pdf`);
         });
 
-        // 4. MS WORD EXPORT
         document.getElementById('exportWord').addEventListener('click', function() {
             const tableHTML = document.getElementById("salesTable").outerHTML;
             const content = `
@@ -226,7 +218,6 @@ try {
             link.click();
         });
 
-        // 5. CSV EXPORT
         document.getElementById('exportCSV').addEventListener('click', function() {
             let csv = [];
             let rows = document.querySelectorAll("#salesTable tr");
@@ -243,7 +234,6 @@ try {
             link.click();
         });
 
-        // Sidebar Toggle
         const sidebar = document.querySelector('.sidebar');
         const toggleBtn = document.getElementById('sidebarToggle');
         toggleBtn.addEventListener('click', () => { sidebar.classList.toggle('collapsed'); });

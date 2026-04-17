@@ -7,7 +7,6 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// 1. HANDLE FORM SUBMISSION (Saving to Database)
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_transfer'])) {
     $item = $_POST['item_name'];
     $qty = $_POST['qty'];
@@ -27,12 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_transfer'])) {
     }
 }
 
-// 2. FETCH ALL REQUESTS FOR THE TABLE
 try {
     $stmt = $pdo->query("SELECT * FROM transfer_requests ORDER BY created_at DESC");
     $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // 3. CALCULATE STATS FOR BADGES
     $total_req = count($requests);
     $approved_count = 0;
     $declined_count = 0;
@@ -222,8 +219,6 @@ try {
         function closeForm() {
             document.getElementById("popupForm").style.display = "none";
         }
-
-        // Close modal if clicking background
         window.onclick = function(event) {
             let modal = document.getElementById("popupForm");
             if (event.target == modal) {

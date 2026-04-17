@@ -1,7 +1,7 @@
 <?php
 require_once "../auth/conn.php";
 
-// Handle Form Submission
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     $customer_name = $_POST['customer_name'];
     $product_id = $_POST['product_id']; 
@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     $status = 'Pending'; 
     $delivery = $_POST['estimated_delivery'];
 
-    // 1. Fetch the product details first to get the name, price, and variation
+
     $stmt_product = $pdo->prepare("SELECT product_name, price, variation FROM products WHERE id = ?");
     $stmt_product->execute([$product_id]);
     $product_info = $stmt_product->fetch();
@@ -19,10 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
         $variation = $product_info['variation'];
         $unit_price = $product_info['price'];
         
-        // 2. Calculate the total price based on quantity
         $total_price = $unit_price * $quantity;
 
-        // 3. Insert into database with all fields populated
+
         $sql = "INSERT INTO orders (product_id, product_name, variation, customer_name, quantity, total_price, status, estimated_delivery) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $pdo->prepare($sql);
@@ -42,10 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     }
 }
 
-// Fetch Products for the dropdown
+
 $all_products = $pdo->query("SELECT id, product_name, price FROM products")->fetchAll();
 
-// Fetch Orders for the table (JOIN to get product info for display)
 $all_orders = $pdo->query("SELECT o.*, p.category, p.price as unit_price 
                             FROM orders o 
                             JOIN products p ON o.product_id = p.id 
@@ -88,15 +86,13 @@ $all_orders = $pdo->query("SELECT o.*, p.category, p.price as unit_price
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Orders</span></div>
-            <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
-                <a href="user_inventory.php" class="nav-item">
-                    <i class="fa-solid fa-right-left"></i> <span>User Inventory</span>
-                </a>
+             <nav style="flex-grow: 1;">
+                <a href="index.php" class="nav-item"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
-                <a href="basic_reports.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
-                <a href="orders.php" class="nav-item active"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
-                <a href="sales.php" class="nav-item"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
+                <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
+                <a href="sales.php" class="nav-item active"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
             <div class="sidebar-footer">

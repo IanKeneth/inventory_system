@@ -1,27 +1,22 @@
 <?php
 require_once "../auth/conn.php";
 
-// Handle Status Update
+
 if (isset($_POST['update_status'])) {
     $order_id = $_POST['order_id'];
     $new_status = trim($_POST['status']); 
     $decline_reason = isset($_POST['decline_reason']) ? trim($_POST['decline_reason']) : '';
 
-    // Fetch order details including name and variation for the log
+
     $stmt = $pdo->prepare("SELECT o.status, o.quantity, o.product_id, p.product_name, p.variation 
-                           FROM orders o 
-                           JOIN products p ON o.product_id = p.id 
-                           WHERE o.order_id = ?");
+                FROM orders o JOIN products p ON o.product_id = p.id WHERE o.order_id = ?");
     $stmt->execute([$order_id]);
     $current = $stmt->fetch();
 
     if ($current) {
         try {
             $pdo->beginTransaction();
-
-            // --- ACTION: LOGIC FOR "STOCK OUT" (When Admin Approves) ---
             if ($current['status'] !== 'Approved' && $new_status === 'Approved') {
-                // 1. Deduct from Products
                 $up = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ? AND quantity >= ?");
                 $up->execute([$current['quantity'], $current['product_id'], $current['quantity']]);
                 
@@ -29,9 +24,8 @@ if (isset($_POST['update_status'])) {
                     throw new Exception("Insufficient stock to approve this order!");
                 }
 
-                // 2. AUTOMATIC LOG ENTRY (Track & Reports)
                 $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) 
-                                         VALUES (?, 'Out', ?, ?)");
+                            VALUES (?, 'Out', ?, ?)");
                 $log_stmt->execute([
                     $current['product_id'], 
                     $current['quantity'], 
@@ -39,15 +33,13 @@ if (isset($_POST['update_status'])) {
                 ]);
             }
 
-            // --- ACTION: LOGIC FOR "RETURN STOCK" (If Admin Un-approves or Cancels) ---
+
             if ($current['status'] === 'Approved' && $new_status !== 'Approved') {
-                // 1. Return to Products
                 $up = $pdo->prepare("UPDATE products SET quantity = quantity + ? WHERE id = ?");
                 $up->execute([$current['quantity'], $current['product_id']]);
 
-                // 2. LOG THE RETURN (Track & Reports)
                 $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) 
-                                         VALUES (?, 'In', ?, ?)");
+                            VALUES (?, 'In', ?, ?)");
                 $log_stmt->execute([
                     $current['product_id'], 
                     $current['quantity'], 
@@ -55,7 +47,7 @@ if (isset($_POST['update_status'])) {
                 ]);
             }
 
-            // Update the order status and the reason
+
             $update = $pdo->prepare("UPDATE orders SET status = ?, decline_reason = ? WHERE order_id = ?");
             $update->execute([$new_status, $decline_reason, $order_id]);
 
@@ -70,7 +62,6 @@ if (isset($_POST['update_status'])) {
     }
 }
 
-// Fetch all orders with product details for the display
 $all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.quantity as current_stock 
                             FROM orders o 
                             JOIN products p ON o.product_id = p.id 
@@ -207,12 +198,10 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.q
     </div>
 
     <script>
-        // Sidebar toggle logic
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             document.querySelector('.sidebar').classList.toggle('collapsed');
         });
 
-        // Function to show/hide the reason input
         function checkDecline(select) {
             const container = select.closest('form');
             const reasonBox = container.querySelector('.decline-box');

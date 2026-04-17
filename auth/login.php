@@ -106,13 +106,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         const eyeIcon = document.querySelector('#eyeIcon');
 
         togglePassword.addEventListener('click', function () {
-            // Check the current type of the password input
+
             const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
-            
-            // Change the type (shows/hides the text)
             passwordField.setAttribute('type', type);
-            
-            // Toggle the FontAwesome icon classes
+
             eyeIcon.classList.toggle('fa-eye');
             eyeIcon.classList.toggle('fa-eye-slash');
         });

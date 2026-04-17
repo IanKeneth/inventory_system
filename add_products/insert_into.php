@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once '../auth/conn.php'; 
-/** @var PDO $pdo */ // This tells the editor that $pdo is a PDO object
+/** @var PDO $pdo */ 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -13,10 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $quantity     = $_POST['quantity'];
         $max_qty      = $_POST['max_quantity'] ?? 100;
 
-        // Start Transaction to ensure both tables update together
+    
         $pdo->beginTransaction();
 
-        // 1. Check for Duplicate
+    
         $check_stmt = $pdo->prepare("SELECT id FROM products WHERE category = :cat AND product_name = :prod AND variation = :var LIMIT 1");
         $check_stmt->execute([':cat' => $category, ':prod' => $product_name, ':var' => $variation]);
         
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
 
-        // 2. Insert into Products
+    
         $sql = "INSERT INTO products (category, product_name, variation, description, price, quantity, max_quantity) 
                 VALUES (:cat, :prod, :var, :desc, :price, :qty, :max)";
         $stmt = $pdo->prepare($sql);
@@ -35,10 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':desc' => $description, ':price' => $price, ':qty' => $quantity, ':max' => $max_qty
         ]);
 
-        // 3. GET THE NEW PRODUCT ID
+    
         $new_product_id = $pdo->lastInsertId();
 
-        // 4. INSERT INTO INVENTORY_LOGS (THE RECORD)
         $log_sql = "INSERT INTO inventory_logs (product_id, type, quantity, reason) 
                     VALUES (:pid, 'In', :qty, :reason)";
         $log_stmt = $pdo->prepare($log_sql);
