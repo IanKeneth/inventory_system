@@ -67,7 +67,6 @@ try {
         .status-table th { text-align: left; padding: 15px; background: #fdfdfd; border-bottom: 2px solid #f28c28; color: #666; font-size: 0.8rem; text-transform: uppercase; }
         .status-table td { padding: 15px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
         
-        /* Status Colors */
         .status-text { font-weight: bold; }
         .approved { color: #2ecc71; }
         .pending { color: #f1c40f; }

@@ -1,67 +1,3 @@
-<?php
-require 'conn.php'; 
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    //input validation
-    $name = htmlspecialchars(trim($_POST['name']));
-    $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
-    $password = trim($_POST['password'] ?? '');
-    $confirm_password = trim($_POST['confirm_password'] ?? '');
-    $passwordPattern = "/^(?=.*[0-9])(?=.*[!@#$%^&*]).{8,}$/";
-
-    if (empty($name) || !$email) {
-        ?>
-        <script>alert("Please fill in all fields.");</script>
-        <?php
-    }
-    elseif (!preg_match($passwordPattern, $password)) {
-        ?>
-        <script>
-            alert("Password too weak! Must be at least 8 characters or more and include special characters and numbers");
-        </script>
-        <?php
-    }
-    elseif ($password !== $confirm_password) {
-        ?>
-        <script>alert("Passwords do not match!");</script>
-        <?php
-    } else {
-        try{
-            // Check if email already exists
-            //Using prepare statement and parameters for secucrity  
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            
-            if ($stmt->rowCount() > 0) {
-                ?>
-                <script>alert("Email already registered!");</script>
-                <?php
-            } else {
-                // Check if email already exists
-            //Using prepare statement and parameters for secucrity  
-                $hashed = password_hash($password, PASSWORD_DEFAULT);
-                $insert = $pdo->prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)");
-                if ($insert->execute([$name, $email, $hashed])) {
-                    ?>
-                    <script>
-                        alert("Registration successful! Please login.");
-                        window.location.href = 'login.php';
-                    </script>
-                    <?php
-                }
-            }
-            //error handling
-        } catch (PDOException $e) {
-            error_log("DB Error: " . $e->getMessage());
-            ?>
-            <script>
-                alert("Sorry we are having technical issues");
-            </script>"
-            <?php
-        }
-    }
-}
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -69,53 +5,184 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Account</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="registration-style.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            /* The exact gradient from your image */
+            background: linear-gradient(135deg, #f28c28 0%, #ffb366 40%, #f4f4f0 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: #ffffff;
+            width: 100%;
+            max-width: 450px;
+            padding: 50px 40px;
+            border-radius: 25px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .avatar-circle {
+            width: 85px;
+            height: 85px;
+            background-color: #f28c28; 
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 25px;
+            box-shadow: 0 10px 20px rgba(242, 140, 40, 0.3);
+        }
+
+        .person-icon {
+            font-size: 40px;
+            color: #ffffff;
+        }
+
+        .auth-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .auth-title span {
+            color: #f28c28;
+        }
+
+        .auth-subtitle {
+            font-size: 15px;
+            color: #888;
+            margin-bottom: 35px;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 18px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 13px 13px 13px 40px;
+            border: 1px solid #f0f0f0;
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+            background-color: #fcfcfc;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            border-color: #f28c28;
+            background-color: #fff;
+            box-shadow: 0 0 0 4px rgba(242, 140, 40, 0.05);
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #b0b0b0;
+            font-size: 18px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #666;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            background-color: #f3a660; 
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: transform 0.2s ease, background 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #e6954d;
+            transform: translateY(-1px);
+        }
+
+        .auth-footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .auth-footer a {
+            color: #f28c28;
+            text-decoration: none;
+            font-weight: 700;
+        }
+    </style>
 </head>
 <body>
 
-    <div class="auth-wrapper">
-        <div class="auth-card">
-            <div class="auth-logo">
-                <div class="avatar-circle">
-                    <i class="fa-solid fa-user-plus person-icon"></i>
-                </div>
-            </div>         
-            <h2 class="auth-title">Create Account</h2>
-            <p class="auth-subtitle">Join us to start managing your inventory.</p>
-            
-            <form action="registration.php" method="POST">
-                <div class="input-group">
-                    <span class="input-icon"><i class="fa-regular fa-user"></i></span>
-                    <input type="text" name="name" placeholder="Full Name" required>
-                </div>
-
-                <div class="input-group">
-                    <span class="input-icon"><i class="fa-regular fa-envelope"></i></span>
-                    <input type="email" name="email" placeholder="Email Address" required>
-                </div>
-
-                <div class="input-group" style="position: relative; display: flex; align-items: center;">
-                    <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
-                    <input type="password" name="password" id="password" placeholder="Password" required style="padding-right: 40px; width: 100%;">
-                    <span class="password-toggle" id="togglePassword" style="position: absolute; right: 15px; cursor: pointer; color: #666;">
-                        <i class="fa-regular fa-eye" id="eyeIcon1"></i>
-                    </span>
-                </div>
-
-                <div class="input-group" style="position: relative; display: flex; align-items: center; margin-top: 15px;">
-                    <span class="input-icon"><i class="fa-solid fa-shield-halved"></i></span>
-                    <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required style="padding-right: 40px; width: 100%;">
-                    <span class="password-toggle" id="toggleConfirmPassword" style="position: absolute; right: 15px; cursor: pointer; color: #666;">
-                        <i class="fa-regular fa-eye" id="eyeIcon2"></i>
-                    </span>
-                </div>
-
-                <button type="submit" class="btn-primary" style="margin-top: 20px;">Register Now</button>
-            </form>
-
-            <div class="auth-footer">
-                <span>Already have an account? <a href="login.php">Login</a></span>
+    <div class="auth-card">
+        <div class="avatar-circle">
+            <i class="fa-solid fa-user person-icon"></i>
+        </div>
+        
+        <h2 class="auth-title">Create <span>Account</span></h2>
+        <p class="auth-subtitle">Please enter your details to register</p>
+        
+        <form action="registration.php" method="POST">
+            <div class="input-group">
+                <span class="input-icon"><i class="fa-regular fa-user"></i></span>
+                <input type="text" name="name" placeholder="Full Name" required>
             </div>
+
+            <div class="input-group">
+                <span class="input-icon"><i class="fa-regular fa-envelope"></i></span>
+                <input type="email" name="email" placeholder="Email Address" required>
+            </div>
+
+            <div class="input-group">
+                <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
+                <input type="password" name="password" id="password" placeholder="Password" required>
+                <span class="password-toggle" id="togglePassword">
+                    <i class="fa-regular fa-eye" id="eyeIcon1"></i>
+                </span>
+            </div>
+
+            <div class="input-group">
+                <span class="input-icon"><i class="fa-solid fa-shield-halved"></i></span>
+                <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
+                <span class="password-toggle" id="toggleConfirmPassword">
+                    <i class="fa-regular fa-eye" id="eyeIcon2"></i>
+                </span>
+            </div>
+
+            <button type="submit" class="btn-primary">Register Now</button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="login.php">Login</a>
         </div>
     </div>
 
@@ -136,6 +203,5 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         setupToggle('togglePassword', 'password', 'eyeIcon1');
         setupToggle('toggleConfirmPassword', 'confirm_password', 'eyeIcon2');
     </script>
-
 </body>
 </html>

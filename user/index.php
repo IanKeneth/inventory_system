@@ -4,192 +4,230 @@ require_once '../auth/conn.php';
 
 /** @var PDO $pdo */
 
-
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: ../auth/login.php");
     exit();
 }
 
 try {
-   
+    // REVENUE QUERIES 
     $totalSales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved'")->fetchColumn();
     $dailySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND DATE(created_at) = CURDATE()")->fetchColumn();
     $monthlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
     $yearlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
 
-
-    $stmt = $pdo->query("SELECT DATEDIFF(CURDATE(), MIN(created_at)) as days FROM orders");
-    $daysSinceStart = $stmt->fetch()['days'] ?? 0;
-
- 
+    // INVENTORY & ALERTS
     $productCount = $pdo->query("SELECT COUNT(*) FROM products")->fetchColumn();
-    $lowStockCount = $pdo->query("SELECT COUNT(*) FROM products WHERE (quantity / max_quantity) * 100 <= 15")->fetchColumn();
+    $lowStockCount = $pdo->query("SELECT COUNT(*) FROM products WHERE max_quantity > 0 AND (quantity / max_quantity) * 100 <= 15")->fetchColumn();
 
+    //REQUEST TRACKING
+    $totalRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests")->fetchColumn();
+    $pendingRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests WHERE status = 'Pending'")->fetchColumn();
+    $approvedRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests WHERE status = 'Approved'")->fetchColumn();
 
+    // RECENT ACTIVITY
     $stmt = $pdo->query("SELECT o.*, p.product_name FROM orders o 
                         JOIN products p ON o.product_id = p.id 
                         ORDER BY o.created_at DESC LIMIT 5");
     $recentOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-   
-    $labels = [];
-    $values = [];
+    $labels = []; $values = [];
     for ($i = 6; $i >= 0; $i--) {
-        $date = date('Y-m-d', strtotime("-$i Month"));
-        $labels[] = date('M Y ', strtotime($date));
-        
+        $date = date('Y-m-d', strtotime("-$i Day"));
+        $labels[] = date('M d', strtotime($date));
         $stmt = $pdo->prepare("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE DATE(created_at) = ? AND status = 'Approved'");
         $stmt->execute([$date]);
         $values[] = $stmt->fetchColumn();
     }
-
 } catch (PDOException $e) {
-    error_log("Dashboard Database Error: " . $e->getMessage());
-    die("<div style='padding:50px; text-align:center; font-family:sans-serif;'><h2>⚠️ System Maintenance</h2><p>We are currently experiencing database issues. Please try again later.</p></div>");
+    error_log("Dashboard Error: " . $e->getMessage());
+    die("System Maintenance. Please try again later.");
 }
 
-function e($value) {
-    return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
-}
+function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8'); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Admin Panel</title>
+    <title>Management Dashboard | Admin</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 25px; }
-        .stat-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; overflow: hidden; transition: transform 0.3s; }
-        .stat-card:hover { transform: translateY(-5px); }
-        .stat-card h3 { color: #7f8c8d; font-size: 0.9rem; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-        .stat-card .value { font-size: 1.8rem; font-weight: bold; color: #2c3e50; }
-        .card-icon { position: absolute; right: -10px; bottom: -10px; font-size: 4.5rem; opacity: 0.07; color: #f28c28; }
-        .sales-breakdown { display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #f8f9fa; }
-        .sales-sub { flex: 1; }
-        .sales-sub label { font-size: 0.6rem; color: #95a5a6; display: block; text-transform: uppercase; }
-        .sales-sub span { font-size: 0.8rem; font-weight: 600; color: #2c3e50; }
-        .bottom-row { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; padding: 0 25px 25px 25px; }
-        @media (max-width: 992px) { .bottom-row { grid-template-columns: 1fr; } }
-        .chart-box, .recent-orders-box { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .recent-orders-box h2, .chart-box h2 { font-size: 1.1rem; margin-bottom: 20px; color: #2c3e50; display: flex; align-items: center; gap: 10px; }
-        .order-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #f8f9fa; }
-        .order-row:last-child { border-bottom: none; }
-        .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; }
-        .status-pending { background: #fff4e6; color: #f28c28; }
+        :root {
+            --primary-orange: #f28c28;
+            --success-green: #27ae60;
+            --danger-red: #e74c3c;
+            --text-main: #2c3e50;
+            --text-muted: #858796;
+            --card-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+        }
+
+        body { background-color: #f8f9fc; color: var(--text-main); font-family: 'Inter', sans-serif; }
+
+        .dashboard-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
+            gap: 24px; 
+            padding: 25px; 
+        }
+
+        .stat-card { 
+            background: white; 
+            padding: 24px; 
+            border-radius: 12px; 
+            box-shadow: var(--card-shadow); 
+            border-left: 5px solid var(--primary-orange);
+            position: relative; 
+            transition: transform 0.2s ease;
+        }
+        .stat-card:hover { transform: translateY(-4px); }
+
+        .stat-card h3 { 
+            font-size: 0.75rem; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            letter-spacing: 0.1em; 
+            color: var(--primary-orange); 
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value { font-size: 1.75rem; font-weight: 800; color: #4e73df; color: var(--text-main); }
+        .stat-card p { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+        .card-icon { 
+            position: absolute; right: 20px; top: 20px; 
+            font-size: 2.2rem; opacity: 0.15; color: var(--text-muted); 
+        }
+
+        .revenue-footer { 
+            display: flex; gap: 15px; margin-top: 15px; 
+            padding-top: 12px; border-top: 1px solid #eaecf4; 
+        }
+        .rev-item label { display: block; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+        .rev-item span { font-size: 0.85rem; font-weight: 700; color: var(--text-main); }
+
+    
+        .bottom-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; padding: 0 25px 25px 25px; }
+        @media (max-width: 1024px) { .bottom-row { grid-template-columns: 1fr; } }
+
+        .content-box { background: white; padding: 25px; border-radius: 12px; box-shadow: var(--card-shadow); }
+        .content-box h2 { font-size: 1rem; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+
+        .activity-item {
+            display: flex; align-items: center; padding: 12px; margin-bottom: 10px;
+            background: #f8f9fc; border-radius: 8px; border: 1px solid #e3e6f0;
+        }
+        .activity-icon {
+            width: 36px; height: 36px; border-radius: 50%; background: white;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary-orange); margin-right: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .status-badge {
+            font-size: 0.65rem; font-weight: 800; padding: 4px 10px;
+            border-radius: 20px; text-transform: uppercase;
+        }
         .status-approved { background: #e6fffa; color: #27ae60; }
-        .status-shipped { background: #e3f2fd; color: #1e88e5; }
-        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 25px; background: white; border-bottom: 1px solid #eee; }
-        .report-group { position: relative; }
-        .report-btn { background: #f28c28; color: white; padding: 10px 18px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
-        .report-btn:hover { background: #d3761d; }
-        .report-dropdown-content { display: none; position: absolute; right: 0; background-color: white; min-width: 180px; box-shadow: 0px 8px 16px rgba(0,0,0,0.1); z-index: 1000; border-radius: 8px; margin-top: 5px; overflow: hidden; border: 1px solid #eee; }
-        .report-dropdown-content a { color: #2c3e50; padding: 12px 16px; text-decoration: none; display: block; font-size: 0.85rem; transition: 0.2s; }
-        .report-dropdown-content a:hover { background-color: #f8f9fa; color: #f28c28; }
-        .show { display: block; }
+        .status-pending { background: #fff4e6; color: #f28c28; }
     </style>
 </head>
 <body>
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Admin Panel</span></div>
-              <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                <a href="index.php" class="nav-item active"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
                 <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
                 <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
-                <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
-                <a href="sales.php" class="nav-item active"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="orders.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
+                <a href="sales.php" class="nav-item "><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
             <div class="sidebar-footer">
-                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
+                <a href="../auth/logout.php" class="nav-item" ><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
             </div>
         </aside>
 
         <main class="main-content">
             <header class="header">
-                <div class="header-left" style="display: flex; align-items: center; gap: 15px;">
+                <div style="display:flex; align-items:center; gap:15px;">
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
-                    <h1 style="margin: 0; font-size: 1.5rem; color: #2c3e50;">Management Overview</h1>
-                </div>
-                <div class="header-right">
-                    <div class="report-group">
-                        <button class="report-btn" onclick="toggleReportMenu()">
-                            <i class="fa-solid fa-file-export"></i> Generate Report <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
-                        </button>
-                        <div id="reportMenu" class="report-dropdown-content">
-                            <a href="../add_products/generate_report.php?format=csv"><i class="fa-solid fa-file-csv"></i> Export as CSV</a>
-                            <a href="../add_products/generate_report.php?format=excel"><i class="fa-solid fa-file-excel"></i> Export as Excel</a>
-                            <a href="../add_products/generate_report.php?format=pdf" target="_blank"><i class="fa-solid fa-file-pdf"></i> View/Print PDF</a>
-                        </div>
-                    </div>
+                    <h1 style="font-size:1.25rem; font-weight:700;">Dashboard Overview</h1>
                 </div>
             </header>
 
             <div class="dashboard-grid">
                 <div class="stat-card">
-                    <h3>Revenue Overview</h3>
+                    <h3>Total Revenue</h3>
                     <div class="value">₱<?= number_format($totalSales, 2) ?></div>
-                    <div class="sales-breakdown">
-                        <div class="sales-sub"><label>Daily</label><span>₱<?= number_format($dailySales) ?></span></div>
-                        <div class="sales-sub">
-                            <label>Monthly</label>
-                            <span><?= $daysSinceStart >= 30 ? '₱'.number_format($monthlySales) : 'Pending' ?></span>
-                        </div>
-                        <div class="sales-sub">
-                            <label>Yearly</label>
-                            <span><?= $daysSinceStart >= 365 ? '₱'.number_format($yearlySales) : 'Pending' ?></span>
-                        </div>
+                    <div class="revenue-footer">
+                        <div class="rev-item"><label>Daily</label><span>₱<?= number_format($dailySales) ?></span></div>
+                        <div class="rev-item"><label>Monthly</label><span>₱<?= number_format($monthlySales) ?></span></div>
+                        <div class="rev-item"><label>Yearly</label><span>₱<?= number_format($yearlySales) ?></span></div>
                     </div>
-                    <i class="fa-solid fa-sack-dollar card-icon"></i>
+                    <i class="fa-solid fa-coins card-icon"></i>
                 </div>
 
                 <div class="stat-card">
                     <h3>Active Products</h3>
                     <div class="value"><?= $productCount ?></div>
-                    <p style="color: #7f8c8d; font-size: 0.8rem; margin-top:5px;">Currently in your catalog</p>
+                    <p>Total items in catalog</p>
                     <i class="fa-solid fa-box card-icon"></i>
                 </div>
 
-                <div class="stat-card">
+                <div class="stat-card" style="border-left-color: <?= $lowStockCount > 0 ? 'var(--danger-red)' : 'var(--success-green)' ?>;">
                     <h3>Stock Alerts</h3>
-                    <div class="value" style="color: <?= $lowStockCount > 0 ? '#e74c3c' : '#27ae60' ?>;"><?= $lowStockCount ?></div>
-                    <p style="color: #7f8c8d; font-size: 0.8rem; margin-top:5px;">Items below 15% stock</p>
-                    <i class="fa-solid fa-bell card-icon"></i>
+                    <div class="value" style="color: <?= $lowStockCount > 0 ? 'var(--danger-red)' : 'var(--success-green)' ?>;"><?= $lowStockCount ?></div>
+                    <p>Items reaching low levels</p>
+                    <i class="fa-solid fa-triangle-exclamation card-icon"></i>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Staff Requests</h3>
+                    <div class="value"><?= $totalRequests ?></div>
+                    <p>Total transfer requests</p>
+                    <i class="fa-solid fa-file-invoice card-icon"></i>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Pending</h3>
+                    <div class="value" style="color: var(--primary-orange);"><?= $pendingRequests ?></div>
+                    <p>Awaiting admin action</p>
+                    <i class="fa-solid fa-hourglass-half card-icon"></i>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Approved</h3>
+                    <div class="value" style="color: var(--success-green);"><?= $approvedRequests ?></div>
+                    <p>Successfully processed</p>
+                    <i class="fa-solid fa-circle-check card-icon"></i>
                 </div>
             </div>
 
             <div class="bottom-row">
-                <div class="chart-box">
-                    <h2><i class="fa-solid fa-chart-line" style="color: #f28c28;"></i> 7-Day Sales Trend</h2>
-                    <div style="height: 300px;">
-                        <canvas id="salesTrendChart"></canvas>
-                    </div>
+                <div class="content-box">
+                    <h2><i class="fa-solid fa-chart-line" style="color:var(--primary-orange)"></i> Sales Performance</h2>
+                    <div style="height: 320px;"><canvas id="salesTrendChart"></canvas></div>
                 </div>
 
-                <div class="recent-orders-box">
-                    <h2><i class="fa-solid fa-clock-rotate-left" style="color: #f28c28;"></i> Recent Activity</h2>
-                    <?php if (!empty($recentOrders)): ?>
+                <div class="content-box">
+                    <h2><i class="fa-solid fa-list-ul" style="color:var(--primary-orange)"></i> Recent Activity</h2>
+                    <?php if(!empty($recentOrders)): ?>
                         <?php foreach ($recentOrders as $order): ?>
-                            <div class="order-row">
-                                <div style="font-size: 0.85rem;">
-                                    <strong><?= e($order['customer_name'] ?? 'Walk-in') ?></strong><br>
-                                    <span style="color: #7f8c8d;"><?= e($order['product_name']) ?> (x<?= $order['qty'] ?? 1 ?>)</span>
+                            <div class="activity-item">
+                                <div class="activity-icon"><i class="fa-solid fa-cart-shopping"></i></div>
+                                <div style="flex-grow: 1;">
+                                    <div style="font-size: 0.85rem; font-weight: 700;"><?= e($order['product_name']) ?></div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);"><?= e($order['customer_name'] ?? 'Direct Sale') ?></div>
                                 </div>
-                                <span class="status-badge status-<?= strtolower($order['status']) ?>">
-                                    <?= e($order['status']) ?>
-                                </span>
+                                <span class="status-badge status-<?= strtolower($order['status']) ?>"><?= e($order['status']) ?></span>
                             </div>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <div style="text-align:center; padding: 40px 0;">
-                            <i class="fa-solid fa-inbox" style="font-size: 2rem; color: #eee; margin-bottom: 10px;"></i>
-                            <p style="color: #999;">No recent orders recorded.</p>
-                        </div>
+                        <p style="text-align:center; color:var(--text-muted); padding:20px;">No recent transactions found.</p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -198,19 +236,15 @@ function e($value) {
 
     <script>
         const ctx = document.getElementById('salesTrendChart').getContext('2d');
-        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-        gradient.addColorStop(0, 'rgba(242, 140, 40, 0.4)');
-        gradient.addColorStop(1, 'rgba(242, 140, 40, 0)');
-
         new Chart(ctx, {
             type: 'line',
             data: {
                 labels: <?= json_encode($labels) ?>,
                 datasets: [{
-                    label: 'Daily Revenue',
+                    label: 'Revenue',
                     data: <?= json_encode($values) ?>,
                     borderColor: '#f28c28',
-                    backgroundColor: gradient,
+                    backgroundColor: 'rgba(242, 140, 40, 0.05)',
                     borderWidth: 3,
                     fill: true,
                     tension: 0.4,
@@ -222,34 +256,25 @@ function e($value) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
+                plugins: { legend: { display: false } },
+                scales: { 
                     y: { 
                         beginAtZero: true,
-                        suggestedMax: 1000,   
-                        ticks: {
-                            precision: 0,      
-                            callback: function(value) {
-                                return '₱' + value.toLocaleString();
-                            }
-                        }
-                        // ---------------------------------------
+                        suggestedMax: 1000,
+                        grid: { color: "#f3f3f3", drawBorder: false },
+                        ticks: { font: { size: 11 }, callback: v => '₱' + v.toLocaleString() }
+                    },
+                    x: {
+                        grid: { display: false, drawBorder: false },
+                        ticks: { font: { size: 11 } }
                     }
                 }
             }
         });
 
-        function toggleReportMenu() {
-            document.getElementById("reportMenu").classList.toggle("show");
-        }
-
-        window.onclick = function(event) {
-            if (!event.target.closest('.report-group')) {
-                const dropdowns = document.getElementsByClassName("report-dropdown-content");
-                for (let i = 0; i < dropdowns.length; i++) {
-                    dropdowns[i].classList.remove('show');
-                }
-            }
-        }
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('active');
+        });
     </script>
 </body>
 </html>

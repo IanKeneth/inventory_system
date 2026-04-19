@@ -3,7 +3,7 @@ session_start();
 require_once "../auth/conn.php"; 
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../app/login.php");
+    header("Location: ../auth/login.php");
     exit();
 }
 
@@ -11,133 +11,169 @@ $user_id = $_SESSION['user_id'];
 
 try {
 
-    $stmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT name, email, profile_pic FROM users WHERE id = ? LIMIT 1");
     $stmt->execute([$user_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
         session_destroy();
-        header("Location: ../app/login.php?error=account_not_found");
+        header("Location: ../auth/login.php");
         exit();
     }
 
     $user_name = $user['name'];
     $user_email = $user['email'];
+    $user_pic = $user['profile_pic'];
 
 } catch (PDOException $e) {
-    die("A database error occurred. Please try again later.");
+    die("Database Error: " . $e->getMessage());
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Staff Settings</title>
+    <title>Settings - Staff</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
     <style>
-        .main-content { background-color: #fdfbf4; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
-        .header { position: sticky; top: 0; z-index: 1000; flex-shrink: 0; border-bottom: 1px solid #e8e4d8; }
-        .settings-container { max-width: 900px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 12px; padding: 20px; padding-bottom: 50px; }
-        .settings-card { background: white; border: 1px solid #e8e4d8; border-radius: 12px; padding: 15px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03); }
-        .profile-header { display: flex; align-items: flex-start; gap: 15px; }
-        .profile-pic-container { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-        .profile-pic { font-size: 60px; color: #7ba6c9; }
-        .change-photo-btn { background: #f28c28; color: white; border: none; padding: 4px 12px; border-radius: 15px; font-size: 0.7rem; cursor: pointer; white-space: nowrap; }
-        .input-group { flex-grow: 1; display: flex; flex-direction: column; gap: 8px; }
-        .input-wrapper { position: relative; }
-        .input-wrapper i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #888; font-size: 0.85rem; }
-        .input-wrapper .toggle-eye { left: auto; right: 10px; cursor: pointer; }
-        .settings-input { width: 100%; padding: 8px 35px 8px 32px; border: 1px solid #e0ddd0; border-radius: 8px; box-sizing: border-box; font-size: 0.85rem; background: #fff; }
-        .card-title { font-size: 0.9rem; font-weight: bold; color: #444; margin-bottom: 10px; display: block; }
-        .permissions-area { border: 1px solid #e0ddd0; border-radius: 8px; margin-top: 5px; background: #f9f9f9; padding: 12px; font-size: 0.8rem; color: #666; }
+
+        .main-content { background-color: #fdfbf4; min-height: 100vh; overflow-y: auto; display: flex; flex-direction: column; width: 100%; }
+        .header { position: sticky; top: 0; z-index: 1000; background: #f28c28;padding: 10px 20px; display: flex; align-items: center; justify-content: space-between;color: white;box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+        .header h1 { color: white; font-size: 1.2rem; margin: 0; font-weight: 600; }
+        .hamburger-btn { color: white; background: none; border: none; font-size: 1.2rem; cursor: pointer; margin-right: 15px; }
+
+        .settings-container { max-width: 900px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 15px; padding: 20px; }
+        .settings-card { background: white; border: 1px solid #e8e4d8; border-radius: 12px; padding: 20px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03); }
+        .profile-header { display: flex; align-items: center; gap: 30px; flex-wrap: wrap; }
+
+        .profile-pic-container { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; }
+        .profile-box { width: 110px; height: 110px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #eee; border: 2px solid #f28c28; }
+        .profile-box img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-box i { font-size: 80px; color: #ccc; }
+        
+        .user-profile img { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; border: 2px solid white; }
+        .user-profile i { font-size: 30px; color: white; }
+
+
+        .change-photo-btn { background: #f28c28; color: white; border: none; padding: 6px 14px; border-radius: 15px; font-size: 0.75rem; cursor: pointer; font-weight: bold; }
+        .input-group { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
+        .input-wrapper { position: relative; width: 100%; }
+        .input-wrapper i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #888; z-index: 5; }
+        .settings-input { width: 100%; padding: 12px 40px; border: 1px solid #e0ddd0; border-radius: 8px; font-size: 0.9rem; box-sizing: border-box; }
         .btn-row { display: flex; justify-content: flex-end; margin-top: 10px; }
-        .apply-btn { background: #f28c28; color: white; border: none; padding: 8px 25px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
-        .alert { padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem; }
+        .apply-btn { background: #f28c28; color: white; border: none; padding: 10px 35px; border-radius: 25px; font-weight: bold; cursor: pointer; }
+        
+   
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 15px; width: 100%; box-sizing: border-box; }
         .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .card-title { font-weight: bold; color: #333; display: block; margin-bottom: 15px; font-size: 1.1rem; }
+
+        #loadingOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.8); z-index: 9999; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #f28c28; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-
 <body>
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; font-weight: bold; color: #f28c28;">Updating Profile...</p>
+    </div>
+
     <div class="container">
         <aside class="sidebar">
-            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Staff Panel</span></div>
-              <nav style="flex-grow: 1;">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-boxes-stacked"></i> <span>Staff Account</span>
+            </div>
+            <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
                 <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
                 <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
                 <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
-                <a href="sales.php" class="nav-item active"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
-                <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
+                <a href="sales.php" class="nav-item"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="settings.php" class="nav-item active"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
+            <div class="sidebar-footer">
+                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
+            </div>
         </aside>
 
         <main class="main-content">
             <header class="header">
-                <div class="header-left">
+                <div class="header-left" style="display: flex; align-items: center;">
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
                     <h1>Staff Settings</h1>
                 </div>
-                <div class="user-profile"><i class="fa-solid fa-circle-user"></i></div>
+                <div class="user-profile">
+                    <?php if(!empty($user_pic)): ?>
+                        <img src="../assets/uploads/profiles/<?= htmlspecialchars($user_pic) ?>?t=<?= time() ?>" alt="Profile">
+                    <?php else: ?>
+                        <i class="fa-solid fa-circle-user"></i>
+                    <?php endif; ?>
+                </div>
             </header>
 
             <section class="settings-container">
-                <?php if (isset($_SESSION['success'])): ?>
-                    <div class="alert alert-success"><?php echo $_SESSION['success']; unset($_SESSION['success']); ?></div>
+                <?php if(isset($_SESSION['success'])): ?>
+                    <div class="alert alert-success" id="successMsg">
+                        <i class="fa-solid fa-circle-check"></i> <?= $_SESSION['success']; unset($_SESSION['success']); ?>
+                    </div>
                 <?php endif; ?>
-                <?php if (isset($_SESSION['error'])): ?>
-                    <div class="alert alert-error"><?php echo $_SESSION['error']; unset($_SESSION['error']); ?></div>
+                
+                <?php if(isset($_SESSION['error'])): ?>
+                    <div class="alert alert-error"><?= $_SESSION['error']; unset($_SESSION['error']); ?></div>
                 <?php endif; ?>
 
-                <form action="../update_staff_profile.php" method="POST">
-                    <div style="display: flex; flex-direction: column; gap: 15px;">
-
-                        <div class="settings-card">
-                            <span class="card-title">My Account</span>
-                            <div class="profile-header">
-                                <div class="profile-pic-container">
-                                    <i class="fa-solid fa-circle-user profile-pic"></i>
-                                    <button type="button" class="change-photo-btn">Change</button>
+                <form id="profileForm" action="../add_products/admin_setting.php" method="POST" enctype="multipart/form-data">
+                    <div class="settings-card">
+                        <span class="card-title">Account Information</span>
+                        <div class="profile-header">
+                            <div class="profile-pic-container">
+                                <div class="profile-box" id="picBox">
+                                    <?php if(!empty($user_pic)): ?>
+                                        <img src="../assets/uploads/profiles/<?= htmlspecialchars($user_pic) ?>?t=<?= time() ?>" id="profilePreview">
+                                    <?php else: ?>
+                                        <i class="fa-solid fa-circle-user" id="profileIcon"></i>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="input-group">
-                                    <div class="input-wrapper">
-                                        <i class="fa-solid fa-user"></i>
-                                        <input type="text" name="full_name" class="settings-input" value="<?= htmlspecialchars($user_name) ?>" required>
-                                    </div>
-                                    <div class="input-wrapper">
-                                        <i class="fa-solid fa-envelope"></i>
-                                        <input type="email" name="email" class="settings-input" value="<?= htmlspecialchars($user_email) ?>" required>
-                                    </div>
+                                <button type="button" class="change-photo-btn" onclick="document.getElementById('profile_upload').click();">Change photo</button>
+                                <input type="file" name="profile_pic" id="profile_upload" accept="image/*" style="display: none;">
+                            </div>
+
+                            <div class="input-group">
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-user"></i>
+                                    <input type="text" name="full_name" class="settings-input" value="<?= htmlspecialchars($user_name) ?>" required>
+                                </div>
+                                <div class="input-wrapper">
+                                    <i class="fa-solid fa-envelope"></i>
+                                    <input type="email" name="email" class="settings-input" value="<?= htmlspecialchars($user_email) ?>" readonly>
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="settings-card">
-                            <span class="card-title">Update Password</span>
-                            <div class="input-wrapper" style="margin-bottom: 8px;">
-                                <i class="fa-solid fa-lock"></i>
-                                <input type="password" name="curr_pass" class="settings-input pass-input" placeholder="Current Password">
-                                <i class="fa-regular fa-eye toggle-eye"></i>
-                            </div>
-                            <div class="input-wrapper" style="margin-bottom: 8px;">
-                                <i class="fa-solid fa-lock"></i>
-                                <input type="password" name="new_pass" class="settings-input pass-input" placeholder="New Password">
-                                <i class="fa-regular fa-eye toggle-eye"></i>
-                            </div>
-                            <div class="input-wrapper">
-                                <i class="fa-solid fa-lock"></i>
-                                <input type="password" name="conf_pass" class="settings-input pass-input" placeholder="Confirm New Password">
-                                <i class="fa-regular fa-eye toggle-eye"></i>
-                            </div>
+                    <div class="settings-card" style="margin-top:15px;">
+                        <span class="card-title">Security</span>
+                        <div class="input-wrapper" style="margin-bottom: 12px;">
+                            <i class="fa-solid fa-lock"></i>
+                            <input type="password" name="current_password" class="settings-input" placeholder="Current Password">
                         </div>
+                        <div class="input-wrapper" style="margin-bottom: 12px;">
+                            <i class="fa-solid fa-lock"></i>
+                            <input type="password" name="new_password" class="settings-input" placeholder="New Password">
+                        </div>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-lock"></i>
+                            <input type="password" name="confirm_password" class="settings-input" placeholder="Confirm New Password">
+                        </div>
+                    </div>
 
-                        <div class="btn-row">
-                            <button type="submit" class="apply-btn">Save Profile</button>
-                        </div>
+                    <div class="btn-row">
+                        <button type="submit" name="apply_changes" class="apply-btn">Apply Changes</button>
                     </div>
                 </form>
             </section>
@@ -145,24 +181,32 @@ try {
     </div>
 
     <script>
-        
-        const sidebar = document.querySelector('.sidebar');
-        const toggleBtn = document.getElementById('sidebarToggle');
-        toggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
+        // Loading Overlay
+        document.getElementById('profileForm').addEventListener('submit', function() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
         });
 
-        document.querySelectorAll('.toggle-eye').forEach(eye => {
-            eye.addEventListener('click', function() {
-                const input = this.parentElement.querySelector('.pass-input');
-                if (input.type === "password") {
-                    input.type = "text";
-                    this.classList.replace('fa-eye', 'fa-eye-slash');
-                } else {
-                    input.type = "password";
-                    this.classList.replace('fa-eye-slash', 'fa-eye');
+        // Image Preview
+        document.getElementById('profile_upload').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('picBox').innerHTML = `<img src="${e.target.result}" id="profilePreview">`;
                 }
-            });
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Auto-hide alerts
+        setTimeout(() => {
+            const msg = document.getElementById('successMsg');
+            if(msg) msg.style.display = 'none';
+        }, 4000);
+
+        // Sidebar Toggle
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('collapsed');
         });
     </script>
 </body>

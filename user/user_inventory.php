@@ -2,7 +2,7 @@
 session_start();
 require_once '../auth/conn.php'; 
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: ../auth/login.php");
     exit();
 }
@@ -61,13 +61,12 @@ function e($value) {
     <div class="container">
         <aside class="sidebar">
             <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Inventory System</span></div>
-              <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
-                <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
+                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                <a href="user_inventory.php" class="nav-item active" ><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
                 <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
-                <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
-                <a href="sales.php" class="nav-item active"><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="orders.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
+                <a href="sales.php" class="nav-item "><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
             <div class="sidebar-footer">
@@ -86,6 +85,7 @@ function e($value) {
             <section class="inventory-container">
                 <div class="inventory-card">
                     <h2><i class="fa-solid fa-warehouse"></i> Current Stock Levels</h2>
+                
                     <table class="inventory-table">
                         <thead>
                             <tr>
@@ -97,7 +97,7 @@ function e($value) {
                                 <th>Price</th>
                                 <th>Qty</th>
                                 <th>Health</th>
-                                <th>Action</th>
+                            
                             </tr>
                         </thead>
                         <tbody>
@@ -124,12 +124,6 @@ function e($value) {
                                             <div class="progress-bar-bg"><div class="progress-fill" style="width:<?= $percent ?>%; background:<?= $health_color ?>;"></div></div>
                                             <small><?= round($percent) ?>%</small>
                                         </div>
-                                    </td>
-                                    <td>
-                                        <a href="../add_products/edit_product.php?id=<?= $product['id'] ?>" style="color:#f28c28;"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <a href="javascript:void(0)" onclick="confirmDelete(<?= $product['id'] ?>)" style="color:#e74c3c; margin-left: 10px;">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </a>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -195,6 +189,9 @@ function e($value) {
     </div>
 
     <script>
+        
+
+
         window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
 

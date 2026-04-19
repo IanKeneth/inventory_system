@@ -84,8 +84,7 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.q
         .orders-table th { background-color: #fdfaf7; color: #555; font-size: 0.85rem; padding: 18px; border-bottom: 2px solid #eee; text-align: center; }
         .orders-table td { padding: 15px 18px; border-bottom: 1px solid #eee; font-size: 0.9rem; color: #444; text-align: center; vertical-align: middle; }
         .badge { padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; display: inline-block; min-width: 100px; text-align: center; }
-        
-        /* Status Colors */
+
         .status-Pending { background: #fff3cd; color: #856404; }
         .status-Approved { background: #d4edda; color: #155724; }
         .status-Delivered { background: #e2e3e5; color: #383d41; }

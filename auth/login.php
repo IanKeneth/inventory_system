@@ -4,7 +4,7 @@ require 'conn.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
-    $password = trim($_POST['password']) ?? '';
+    $password = trim(htmlspecialchars($_POST['password'])) ?? '';
 
     try{
         $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
@@ -54,65 +54,70 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> Login</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="login-style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+
+<link rel="stylesheet" href="login-style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
 </head>
 <body>
 
-    <div class="auth-wrapper">
-        <div class="auth-card">
-            <div class="auth-logo">
-                <div class="avatar-circle">
-                    <i class="fa-solid fa-user person-icon"></i>
-                </div>
-            </div>
-            
-            <h2 class="auth-title">Welcome Back</h2>
-            <p class="auth-subtitle">Please enter your details to sign in.</p>
-        
-            <form action="login.php" method="POST">
-                <div class="input-group">
-                    <span class="input-icon"><i class="fa-regular fa-user"></i></span>
-                    <input type="email" name="email" placeholder="Username" required>
-                </div>
+<div class="auth-card">
 
-                <div class="input-group">
-                    <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
-                    <input type="password" name="password" id="password" placeholder="Password" required>
-                    <span class="password-toggle" id="togglePassword" style="cursor: pointer;">
-                        <i class="fa-regular fa-eye" id="eyeIcon"></i>
-                    </span>
-                </div>
-
-                <div class="form-options">
-                    <a href="#" class="forgot-link">Forgot password?</a>
-                </div>
-
-                <button type="submit" class="btn-primary">Login</button>
-            </form>
-
-            <div class="auth-footer">
-                <span>New here? <a href="registration.php">Create an account</a></span>
-            </div>
+    <div class="auth-logo">
+        <div class="avatar-circle">
+            <i class="fa-solid fa-user person-icon"></i>
         </div>
     </div>
 
-    <script>
-        const togglePassword = document.querySelector('#togglePassword');
-        const passwordField = document.querySelector('#password');
-        const eyeIcon = document.querySelector('#eyeIcon');
+    <h2 class="auth-title">Welcome <span>Back</span></h2>
+    <p class="auth-subtitle">Please enter your details</p>
 
-        togglePassword.addEventListener('click', function () {
+    <form method="POST">
 
-            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordField.setAttribute('type', type);
+        <div class="input-group">
+            <span class="input-icon"><i class="fa-regular fa-user"></i></span>
+            <input type="email" name="email" placeholder="Email" required>
+        </div>
 
-            eyeIcon.classList.toggle('fa-eye');
-            eyeIcon.classList.toggle('fa-eye-slash');
-        });
-    </script>
-    </body>
+        <div class="input-group">
+            <span class="input-icon"><i class="fa-solid fa-lock"></i></span>
+            <input type="password" name="password" id="password" placeholder="Password" required>
+            
+            <span class="password-toggle" id="togglePassword">
+                <i class="fa-regular fa-eye" id="eyeIcon"></i>
+            </span>
+        </div>
+
+        <div class="form-options">
+            <a href="#" class="forgot-link">Forgot password?</a>
+        </div>
+
+        <button class="btn-primary">Login</button>
+
+    </form>
+
+    <div class="auth-footer">
+        New here? <a href="registration.php">Create account</a>
+    </div>
+
+</div>
+
+<script>
+const togglePassword = document.getElementById('togglePassword');
+const password = document.getElementById('password');
+const eyeIcon = document.getElementById('eyeIcon');
+
+togglePassword.addEventListener('click', () => {
+    const type = password.type === 'password' ? 'text' : 'password';
+    password.type = type;
+
+    eyeIcon.classList.toggle('fa-eye');
+    eyeIcon.classList.toggle('fa-eye-slash');
+});
+</script>
+
+</body>
 </html>

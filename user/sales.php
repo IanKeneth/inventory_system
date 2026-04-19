@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 try {
-    // Real-world query: Joining products to get prices and calculating totals
+    
     $query = "SELECT o.order_id, p.product_name, o.customer_name, o.quantity, p.price, 
             (o.quantity * p.price) AS total_amount, o.created_at FROM orders o
             JOIN products p ON o.product_id = p.id WHERE o.status IN ('Approved', 'Delivered') ORDER BY o.created_at ASC";
@@ -34,7 +34,7 @@ try {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     
     <style>
-        /* Table and Card Styling */
+
         .sales-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin: 20px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .sales-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
         .sales-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -42,14 +42,13 @@ try {
         .sales-table td { padding: 15px; border-bottom: 1px solid #eee; font-size: 0.9rem; color: #444; }
         .amount-text { font-weight: bold; color: #27ae60; }
         
-        /* Dropdown Button Group */
+
         .btn-group { display: flex; gap: 10px; position: relative; }
         .action-btn { border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; transition: 0.2s; }
         .report-btn { background: #2c3e50; color: white; }
         .report-btn:hover { background: #1a252f; }
         .refresh-btn { background: #f28c28; color: white; }
 
-        /* Dropdown Menu */
         .dropdown-content {
             display: none;
             position: absolute;

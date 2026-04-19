@@ -39,7 +39,18 @@ try {
     <link rel="stylesheet" href="../assets/style.css">
     <style>
         .main-content { background-color: #fdfbf4; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; width: 100%; }
-        .header { position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid #e8e4d8; background: #fff; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+           .header { 
+            position: sticky; 
+            top: 0; 
+            z-index: 1000; 
+            background: #f28c28; 
+            padding: 10px 20px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
         .settings-container { max-width: 900px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 15px; padding: 20px; }
         .settings-card { background: white; border: 1px solid #e8e4d8; border-radius: 12px; padding: 20px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03); }
         .profile-header { display: flex; align-items: center; gap: 30px; flex-wrap: wrap; }
@@ -58,7 +69,6 @@ try {
         .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
-        /* REAL WORLD LOADING OVERLAY */
         #loadingOverlay {
             display: none;
             position: fixed;
