@@ -29,15 +29,22 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['type'])) {
 }
 
 /**
- * FETCH DATA
+ * FETCH DATA WITH JOIN (To get user names)
  */
 try {
-    // Fetch Transfers (Ordered by status then date)
-    $transfer_requests = $pdo->query("SELECT * FROM transfer_requests ORDER BY FIELD(status, 'Pending', 'Approved', 'Declined'), request_date DESC")->fetchAll(PDO::FETCH_ASSOC);
+    // Fetch Transfers + Requester Name
+    $sql_transfers = "SELECT t.*, u.name 
+                      FROM transfer_requests t 
+                      JOIN users u ON t.user_id = u.id 
+                      ORDER BY FIELD(t.status, 'Pending', 'Approved', 'Declined'), t.request_date DESC";
+    $transfer_requests = $pdo->query($sql_transfers)->fetchAll(PDO::FETCH_ASSOC);
     
-    // Fetch Reports (Ordered by status then date)
-    // Note: Ensure your 'basic_reports' table has a 'status' column (Default 'Pending')
-    $basic_reports = $pdo->query("SELECT * FROM basic_reports ORDER BY FIELD(status, 'Pending', 'Approved', 'Declined'), created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+    // Fetch Reports + Requester Name
+    $sql_reports = "SELECT r.*, u.name 
+                    FROM basic_reports r 
+                    JOIN users u ON r.user_id = u.id 
+                    ORDER BY FIELD(r.status, 'Pending', 'Approved', 'Declined'), r.created_at DESC";
+    $basic_reports = $pdo->query($sql_reports)->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     die("Error fetching data: " . $e->getMessage());
 }
@@ -112,6 +119,7 @@ try {
                     <table class="admin-table">
                         <thead>
                             <tr>
+                                <th>Staff Name</th>
                                 <th>Item</th>
                                 <th>Qty</th>
                                 <th>Route</th>
@@ -123,6 +131,7 @@ try {
                         <tbody>
                             <?php foreach ($transfer_requests as $row): ?>
                                 <tr>
+                                    <td><strong><?= htmlspecialchars($row['name']) ?></strong></td>
                                     <td><strong><?= htmlspecialchars($row['item_name']) ?></strong></td>
                                     <td><?= $row['qty'] ?></td>
                                     <td><small><?= $row['source_location'] ?> <i class="fa-solid fa-arrow-right"></i> <?= $row['destination'] ?></small></td>
@@ -149,6 +158,7 @@ try {
                     <table class="admin-table">
                         <thead>
                             <tr>
+                                <th>Staff Name</th>
                                 <th>Product</th>
                                 <th>Stock</th>
                                 <th>Report Title</th>
@@ -161,6 +171,7 @@ try {
                         <tbody>
                             <?php foreach ($basic_reports as $rep): ?>
                                 <tr>
+                                    <td><strong><?= htmlspecialchars($rep['name']) ?></strong></td>
                                     <td><strong><?= htmlspecialchars($rep['product_name']) ?></strong></td>
                                     <td style="color:#f28c28; font-weight:bold;"><?= $rep['quantity_on_hand'] ?></td>
                                     <td style="font-weight:600;"><?= htmlspecialchars($rep['report_title']) ?></td>

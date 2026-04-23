@@ -1,21 +1,24 @@
 <?php
 require_once "../auth/conn.php";
+session_start(); 
 
-
+/**
+ * STATUS UPDATE LOGIC
+ */
 if (isset($_POST['update_status'])) {
     $order_id = $_POST['order_id'];
     $new_status = trim($_POST['status']); 
     $decline_reason = isset($_POST['decline_reason']) ? trim($_POST['decline_reason']) : '';
 
-
-    $stmt = $pdo->prepare("SELECT o.status, o.quantity, o.product_id, p.product_name, p.variation 
-                FROM orders o JOIN products p ON o.product_id = p.id WHERE o.order_id = ?");
+    $stmt = $pdo->prepare("SELECT status, quantity, product_id FROM orders WHERE order_id = ?");
     $stmt->execute([$order_id]);
     $current = $stmt->fetch();
 
     if ($current) {
         try {
             $pdo->beginTransaction();
+            
+            // Logic: Deduct stock when status moves to 'Approved'
             if ($current['status'] !== 'Approved' && $new_status === 'Approved') {
                 $up = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ? AND quantity >= ?");
                 $up->execute([$current['quantity'], $current['product_id'], $current['quantity']]);
@@ -25,7 +28,7 @@ if (isset($_POST['update_status'])) {
                 }
 
                 $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) 
-                            VALUES (?, 'Out', ?, ?)");
+                                        VALUES (?, 'Out', ?, ?)");
                 $log_stmt->execute([
                     $current['product_id'], 
                     $current['quantity'], 
@@ -33,21 +36,21 @@ if (isset($_POST['update_status'])) {
                 ]);
             }
 
-
+            // Logic: Return stock if an 'Approved' order is changed back or 'Declined'
             if ($current['status'] === 'Approved' && $new_status !== 'Approved') {
                 $up = $pdo->prepare("UPDATE products SET quantity = quantity + ? WHERE id = ?");
                 $up->execute([$current['quantity'], $current['product_id']]);
 
                 $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) 
-                            VALUES (?, 'In', ?, ?)");
+                                        VALUES (?, 'In', ?, ?)");
                 $log_stmt->execute([
                     $current['product_id'], 
                     $current['quantity'], 
-                    "Order #" . $order_id . "Declined"
+                    "Order #" . $order_id . " Status Changed from Approved"
                 ]);
             }
 
-
+            // Update the actual order status (Matches your new SQL entities)
             $update = $pdo->prepare("UPDATE orders SET status = ?, decline_reason = ? WHERE order_id = ?");
             $update->execute([$new_status, $decline_reason, $order_id]);
 
@@ -62,12 +65,26 @@ if (isset($_POST['update_status'])) {
     }
 }
 
-$all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.quantity as current_stock 
+/**
+ * FETCH ORDERS (Matched to your snapshot columns)
+ */
+/**
+ * FETCH ORDERS
+ * Changed JOIN to LEFT JOIN so orders show up even if user/product data is missing
+ */
+/**
+ * FETCH ORDERS
+ * Changed u.full_name to u.name to match your database
+ */
+$all_orders = $pdo->query("SELECT 
+                                o.*, 
+                                u.name as staff_name,
+                                p.quantity as current_stock_level
                             FROM orders o 
-                            JOIN products p ON o.product_id = p.id 
+                            LEFT JOIN users u ON o.user_id = u.id 
+                            LEFT JOIN products p ON o.product_id = p.id 
                             ORDER BY o.created_at DESC")->fetchAll();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -111,7 +128,6 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.q
                 <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
                 <a href="inventory_logs.php" class="nav-item "><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
                 <a href="track_request.php" class="nav-item"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
-
                 <a href="view_orders.php" class="nav-item active"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
                 <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
@@ -127,7 +143,6 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.q
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
                     <h1>Manage Orders</h1>
                 </div>
-                <div class="user-profile"><i class="fa-solid fa-circle-user"></i></div>
             </header>
 
             <section class="admin-section">
@@ -144,27 +159,29 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.q
                         <thead>
                             <tr>
                                 <th>Order ID</th>
+                                <th>Listed By</th>
                                 <th>Customer</th>
-                                <th>Product Details</th>
+                                <th>Product (Snapshot)</th>
                                 <th>Qty</th>
                                 <th>Total Price</th>
-                                <th>Stock Left</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($all_orders as $row): 
-                                $total_price = $row['quantity'] * $row['price'];
                                 $display_status = $row['status'];
                             ?>
                             <tr>
                                 <td>#<?= $row['order_id'] ?></td>
-                                <td><strong><?= htmlspecialchars($row['customer_name']) ?></strong></td>
-                                <td><?= htmlspecialchars($row['product_name']) ?></td>
+                                <td><strong><?= htmlspecialchars($row['staff_name'] ?? 'Unknown') ?></strong></td>
+                                <td><?= htmlspecialchars($row['customer_name']) ?></td>
+                                <td>
+                                    <strong><?= htmlspecialchars($row['product_name']) ?></strong><br>
+                                    <small><?= htmlspecialchars($row['variation']) ?> (₱<?= number_format($row['unit_price'], 2) ?>)</small>
+                                </td>
                                 <td><?= $row['quantity'] ?></td>
-                                <td style="color: #27ae60; font-weight: bold;">₱<?= number_format($total_price, 2) ?></td>
-                                <td><?= $row['current_stock'] ?></td>
+                                <td style="color: #27ae60; font-weight: bold;">₱<?= number_format($row['total_price'], 2) ?></td>
                                 <td>
                                     <span class="badge status-<?= $display_status ?>"><?= $display_status ?></span>
                                     <?php if($display_status === 'Declined' && !empty($row['decline_reason'])): ?>
@@ -178,12 +195,13 @@ $all_orders = $pdo->query("SELECT o.*, p.product_name, p.variation, p.price, p.q
                                             <select name="status" class="status-select" onchange="checkDecline(this)">
                                                 <option value="Pending" <?= $display_status == 'Pending' ? 'selected' : '' ?>>Pending</option>
                                                 <option value="Approved" <?= $display_status == 'Approved' ? 'selected' : '' ?>>Approved</option>
+                                                <option value="Delivered" <?= $display_status == 'Delivered' ? 'selected' : '' ?>>Delivered</option>
                                                 <option value="Declined" <?= $display_status == 'Declined' ? 'selected' : '' ?>>Declined</option>
                                             </select>
                                             <button type="submit" name="update_status" class="update-btn"><i class="fa-solid fa-check"></i></button>
                                         </div>
                                         <div class="decline-box">
-                                            <input type="text" name="decline_reason" class="decline-input" placeholder="Why decline? (e.g. Out of stock)">
+                                            <input type="text" name="decline_reason" class="decline-input" placeholder="Reason?">
                                         </div>
                                     </form>
                                 </td>

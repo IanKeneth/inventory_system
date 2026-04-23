@@ -2,20 +2,13 @@
 session_start();
 require_once '../auth/conn.php'; 
 
+// We keep the security check! Only admins should see the page shell.
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../auth/login.php");
     exit();
 }
 
-$all_products = [];
-try {
-    $stmt = $pdo->prepare("SELECT * FROM products ORDER BY id DESC"); 
-    $stmt->execute();
-    $all_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch(PDOException $e) {
-    echo "Error: " . $e->getMessage();
-}
-
+// Note: We removed the $all_products loop from here because the API handles it now.
 function e($value) {
     return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
 }
@@ -29,6 +22,37 @@ function e($value) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
     <style>
+        /* Update the parent to allow children to spread out */
+.header-left {
+    display: flex;
+    align-items: center;
+    width: 96%; /* Ensure it takes full width of the header */
+}
+
+/* Updated Search Container Styles */
+.search-container {
+    position: relative;
+    max-width: 300px;
+    width: 100%;
+    margin-left: auto; /* This pushes the bar to the far right automatically */
+}
+
+.search-container i {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%); /* Perfectly centers the icon vertically */
+    color: #7f8c8d;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 10px 10px 10px 40px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    outline: none;
+    transition: 0.3s;
+}
         .inventory-container { padding: 25px; min-height: 100vh; background: #f9f9f9; }
         .inventory-card { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
         .inventory-card h2 { display: flex; align-items: center; gap: 12px; color: #2c3e50; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #f28c28; font-size: 1.4rem; }
@@ -42,7 +66,6 @@ function e($value) {
         .variation-text { color: #f28c28; font-weight: 600; font-size: 0.9rem; }
         .desc-text { color: #7f8c8d; font-size: 0.8rem; display: block; max-width: 200px; margin: 0 auto; line-height: 1.4; }
         
-        /* Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); justify-content: center; align-items: center; }
         .modal-content { background: #fff; width: 480px; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: slideDown 0.3s ease-out; }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -67,7 +90,6 @@ function e($value) {
                 <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
                 <a href="inventory_logs.php" class="nav-item "><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
                 <a href="track_request.php" class="nav-item"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
-
                 <a href="view_orders.php" class="nav-item"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
                 <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
@@ -78,12 +100,19 @@ function e($value) {
         </aside>
 
         <main class="main-content">
-            <header class="header">
-                <div class="header-left">
-                    <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
-                    <h1>Stock Inventory</h1>
-                </div>
-            </header>
+           <header class="header">
+    <div class="header-left">
+        <button id="sidebarToggle" class="hamburger-btn">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+        <h1 style="white-space: nowrap; margin-right: 20px;">Stock Inventory</h1>
+        
+        <div class="search-container">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="inventorySearch" placeholder="Search by product name, category, or ID...">
+        </div>
+    </div>
+</header>
 
             <section class="inventory-container">
                 <div class="inventory-card">
@@ -102,42 +131,8 @@ function e($value) {
                                 <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php if (!empty($all_products)): ?>
-                                <?php foreach ($all_products as $product): 
-                                    $max = (int)($product['max_quantity'] ?? 100);
-                                    $current = (int)($product['quantity'] ?? 0);
-                                    $percent = ($max > 0) ? ($current / $max) * 100 : 0;
-                                    $health_color = ($percent <= 15) ? '#e74c3c' : '#2ecc71';
-                                    
-                                    
-                                    $description = !empty($product['description']) ? e($product['description']) : '<i style="color:#ccc;">No description</i>';
-                                ?>
-                                <tr id="row-<?= $product['id'] ?>">
-                                    <td>#<?= e($product['id']) ?></td>
-                                    <td><span class="category-tag"><?= e($product['category']) ?></span></td>
-                                    <td><strong><?= e($product['product_name']) ?></strong></td>
-                                    <td><span class="variation-text"><?= e($product['variation'] ?? 'Standard') ?></span></td>
-                                    <td><span class="desc-text"><?= $description ?></span></td>
-                                    <td>₱<?= number_format($product['price'], 2) ?></td>
-                                    <td><?= $current ?> / <?= $max ?></td>
-                                    <td>
-                                        <div class="progress-wrapper">
-                                            <div class="progress-bar-bg"><div class="progress-fill" style="width:<?= $percent ?>%; background:<?= $health_color ?>;"></div></div>
-                                            <small><?= round($percent) ?>%</small>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <a href="../add_products/edit_product.php?id=<?= $product['id'] ?>" style="color:#f28c28;"><i class="fa-solid fa-pen-to-square"></i></a>
-                                        <a href="javascript:void(0)" onclick="confirmDelete(<?= $product['id'] ?>)" style="color:#e74c3c; margin-left: 10px;">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr><td colspan="9">No products found.</td></tr>
-                            <?php endif; ?>
+                        <tbody id="inventory-data">
+                            <tr><td colspan="9">Loading products...</td></tr>
                         </tbody>
                     </table>
                     <button class="refresh-btn" onclick="openForm()"><i class="fa-solid fa-plus"></i> Add New Product</button>
@@ -163,16 +158,12 @@ function e($value) {
                                     <option value="Mops">Mops</option>
                                     <option value="Trash Can">Trash Can</option>
                                 </select>
-
                                 <label>Product Name</label>
                                 <input type="text" name="product_name" placeholder="e.g. Soft Broom" required>
-
-                                <label>Variation (Color/Size/Type)</label>
-                                <input type="text" name="variation" placeholder="e.g. Red, Large, or Premium">
-
+                                <label>Variation</label>
+                                <input type="text" name="variation" placeholder="e.g. Red, Large">
                                 <label>Description</label>
-                                <input type="text" name="description" placeholder="Short details about the product">
-
+                                <input type="text" name="description" placeholder="Short details">
                                 <div style="display: flex; gap: 10px;">
                                     <div style="flex:1;">
                                         <label>Price (₱)</label>
@@ -183,10 +174,8 @@ function e($value) {
                                         <input type="number" name="quantity" required>
                                     </div>
                                 </div>
-                                
-                                <label>Max Capacity (For Health Bar)</label>
+                                <label>Max Capacity</label>
                                 <input type="number" name="max_quantity" value="100" required>
-
                                 <button type="submit" class="btn-submit">Confirm & Save Product</button>
                             </form>
                         </div>
@@ -196,38 +185,36 @@ function e($value) {
         </main>
     </div>
 
+    <script src="../assets/api_js/inventory_api.js"></script>
+
     <script>
+        // Run the fetch as soon as page loads
         window.onload = function() {
-        const urlParams = new URLSearchParams(window.location.search);
+            loadInventory();
 
-        if (urlParams.get('error') === 'duplicate') {
-            alert("❌ Duplicate Product: This item name and variation already exist in this category!");
-            
-            
+            // Check for success/error messages in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('error') === 'duplicate') alert("❌ Duplicate Product!");
+            if (urlParams.get('success') === '1') alert("✅ Product added successfully!");
             window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-    
-        if (urlParams.get('success') === '1') {
-            alert("✅ Product added successfully!");
-            window.history.replaceState({}, document.title, window.location.pathname);
-            }
         };
 
-
-            function confirmDelete(id) {
-            if (confirm("Are you sure you want to delete this product? This will also remove its history logs.")) {
+        // Existing helper functions
+        function confirmDelete(id) {
+            if (confirm("Are you sure you want to delete this product?")) {
                 window.location.href = "../add_products/delete_product.php?id=" + id;
             }
         }
         function openForm() { document.getElementById("popupForm").style.display = "flex"; }
         function closeForm() { document.getElementById("popupForm").style.display = "none"; }
-        
         window.onclick = function(event) {
-            if (event.target == document.getElementById("popupForm")) {
-                closeForm();
-            }
+            if (event.target == document.getElementById("popupForm")) closeForm();
         }
+
+         const sidebar = document.querySelector('.sidebar');
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
     </script>
 </body>
 </html>

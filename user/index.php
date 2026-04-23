@@ -4,41 +4,64 @@ require_once '../auth/conn.php';
 
 /** @var PDO $pdo */
 
+// Restricted to Staff role only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: ../auth/login.php");
     exit();
 }
 
-try {
-    // REVENUE QUERIES 
-    $totalSales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved'")->fetchColumn();
-    $dailySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND DATE(created_at) = CURDATE()")->fetchColumn();
-    $monthlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
-    $yearlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
+$user_id = $_SESSION['user_id'];
 
-    // INVENTORY & ALERTS
+try {
+    // 1. INVENTORY ALERTS
     $productCount = $pdo->query("SELECT COUNT(*) FROM products")->fetchColumn();
     $lowStockCount = $pdo->query("SELECT COUNT(*) FROM products WHERE max_quantity > 0 AND (quantity / max_quantity) * 100 <= 15")->fetchColumn();
 
-    //REQUEST TRACKING
-    $totalRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests")->fetchColumn();
-    $pendingRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests WHERE status = 'Pending'")->fetchColumn();
-    $approvedRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests WHERE status = 'Approved'")->fetchColumn();
+    // 2. PERSONAL REQUEST TRACKING
+    $stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM transfer_requests WHERE user_id = ?");
+    $stmtTotal->execute([$user_id]);
+    $totalRequests = $stmtTotal->fetchColumn();
 
-    // RECENT ACTIVITY
-    $stmt = $pdo->query("SELECT o.*, p.product_name FROM orders o 
-                        JOIN products p ON o.product_id = p.id 
-                        ORDER BY o.created_at DESC LIMIT 5");
-    $recentOrders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmtPending = $pdo->prepare("SELECT COUNT(*) FROM transfer_requests WHERE user_id = ? AND status = 'Pending'");
+    $stmtPending->execute([$user_id]);
+    $pendingRequests = $stmtPending->fetchColumn();
 
-    $labels = []; $values = [];
-    for ($i = 6; $i >= 0; $i--) {
-        $date = date('Y-m-d', strtotime("-$i Day"));
-        $labels[] = date('M d', strtotime($date));
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE DATE(created_at) = ? AND status = 'Approved'");
-        $stmt->execute([$date]);
-        $values[] = $stmt->fetchColumn();
-    }
+    $stmtApproved = $pdo->prepare("SELECT COUNT(*) FROM transfer_requests WHERE user_id = ? AND status = 'Approved'");
+    $stmtApproved->execute([$user_id]);
+    $approvedRequests = $stmtApproved->fetchColumn();
+
+    // 3. COMBINED RECENT ACTIVITY (Transfers + Orders)
+    // We use UNION to grab both types of records sorted by date
+   // 3. COMBINED RECENT ACTIVITY
+    $query = "
+        (SELECT 
+            'Transfer' as activity_type, 
+            item_name as main_label, 
+            qty as quantity, 
+            '' as product_name,
+            '' as variation,  
+            status, 
+            created_at 
+        FROM transfer_requests 
+        WHERE user_id = :uid1)
+        UNION ALL
+        (SELECT 
+            'Order' as activity_type, 
+            customer_name as main_label, 
+            quantity as quantity, 
+            product_name as product_name, 
+            variation as variation,  
+            status, 
+            created_at 
+        FROM orders 
+        WHERE user_id = :uid2)
+        ORDER BY created_at DESC 
+        LIMIT 5";
+
+    $stmt = $pdo->prepare($query);
+    $stmt->execute(['uid1' => $user_id, 'uid2' => $user_id]);
+    $recentActivity = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 } catch (PDOException $e) {
     error_log("Dashboard Error: " . $e->getMessage());
     die("System Maintenance. Please try again later.");
@@ -51,11 +74,11 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Management Dashboard | Admin</title>
+    <title>Staff Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* --- ALL YOUR ORIGINAL CSS KEPT BELOW --- */
         :root {
             --primary-orange: #f28c28;
             --success-green: #27ae60;
@@ -69,7 +92,7 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
 
         .dashboard-grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
             gap: 24px; 
             padding: 25px; 
         }
@@ -89,12 +112,11 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
             font-size: 0.75rem; 
             font-weight: 700; 
             text-transform: uppercase; 
-            letter-spacing: 0.1em; 
             color: var(--primary-orange); 
             margin-bottom: 8px;
         }
 
-        .stat-card .value { font-size: 1.75rem; font-weight: 800; color: #4e73df; color: var(--text-main); }
+        .stat-card .value { font-size: 1.75rem; font-weight: 800; color: var(--text-main); }
         .stat-card p { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
 
         .card-icon { 
@@ -102,16 +124,7 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
             font-size: 2.2rem; opacity: 0.15; color: var(--text-muted); 
         }
 
-        .revenue-footer { 
-            display: flex; gap: 15px; margin-top: 15px; 
-            padding-top: 12px; border-top: 1px solid #eaecf4; 
-        }
-        .rev-item label { display: block; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
-        .rev-item span { font-size: 0.85rem; font-weight: 700; color: var(--text-main); }
-
-    
-        .bottom-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; padding: 0 25px 25px 25px; }
-        @media (max-width: 1024px) { .bottom-row { grid-template-columns: 1fr; } }
+        .bottom-row { display: grid; grid-template-columns: 1fr; gap: 24px; padding: 0 25px 25px 25px; }
 
         .content-box { background: white; padding: 25px; border-radius: 12px; box-shadow: var(--card-shadow); }
         .content-box h2 { font-size: 1rem; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
@@ -123,31 +136,32 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
         .activity-icon {
             width: 36px; height: 36px; border-radius: 50%; background: white;
             display: flex; align-items: center; justify-content: center;
-            color: var(--primary-orange); margin-right: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            color: var(--primary-orange); margin-right: 12px;
         }
 
         .status-badge {
             font-size: 0.65rem; font-weight: 800; padding: 4px 10px;
             border-radius: 20px; text-transform: uppercase;
         }
-        .status-approved { background: #e6fffa; color: #27ae60; }
+        .status-approved, .status-delivered { background: #e6fffa; color: #27ae60; }
         .status-pending { background: #fff4e6; color: #f28c28; }
+        .status-declined { background: #ffebeb; color: #e74c3c; }
     </style>
 </head>
 <body>
     <div class="container">
         <aside class="sidebar">
-            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Admin Panel</span></div>
+            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Staff Panel</span></div>
+            <nav style="flex-grow: 1;">
                 <a href="index.php" class="nav-item active"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
-                <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>User Inventory</span></a>
-                <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>Transfer Request</span></a>
-                <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Basic Reports</span></a>
-                <a href="orders.php" class="nav-item "><i class="fa-solid fa-pen-to-square"></i> <span>Order</span></a>
-                <a href="sales.php" class="nav-item "><i class="fa-solid fa-chart-simple"></i> <span>Sales</span></a>
+                <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-box"></i> <span>Inventory</span></a>
+                <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>My Transfers</span></a>
+                <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Orders</span></a>
+                <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>My Reports</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
             <div class="sidebar-footer">
-                <a href="../auth/logout.php" class="nav-item" ><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
+                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
             </div>
         </aside>
 
@@ -155,79 +169,79 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
             <header class="header">
                 <div style="display:flex; align-items:center; gap:15px;">
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
-                    <h1 style="font-size:1.25rem; font-weight:700;">Dashboard Overview</h1>
+                    <h1 style="font-size:1.25rem; font-weight:700;">Staff Overview</h1>
                 </div>
             </header>
 
             <div class="dashboard-grid">
-                <div class="stat-card">
-                    <h3>Total Revenue</h3>
-                    <div class="value">₱<?= number_format($totalSales, 2) ?></div>
-                    <div class="revenue-footer">
-                        <div class="rev-item"><label>Daily</label><span>₱<?= number_format($dailySales) ?></span></div>
-                        <div class="rev-item"><label>Monthly</label><span>₱<?= number_format($monthlySales) ?></span></div>
-                        <div class="rev-item"><label>Yearly</label><span>₱<?= number_format($yearlySales) ?></span></div>
-                    </div>
-                    <i class="fa-solid fa-coins card-icon"></i>
-                </div>
-
-                <div class="stat-card">
-                    <h3>Active Products</h3>
-                    <div class="value"><?= $productCount ?></div>
-                    <p>Total items in catalog</p>
-                    <i class="fa-solid fa-box card-icon"></i>
-                </div>
-
                 <div class="stat-card" style="border-left-color: <?= $lowStockCount > 0 ? 'var(--danger-red)' : 'var(--success-green)' ?>;">
                     <h3>Stock Alerts</h3>
                     <div class="value" style="color: <?= $lowStockCount > 0 ? 'var(--danger-red)' : 'var(--success-green)' ?>;"><?= $lowStockCount ?></div>
-                    <p>Items reaching low levels</p>
+                    <p>Items needing attention</p>
                     <i class="fa-solid fa-triangle-exclamation card-icon"></i>
                 </div>
 
                 <div class="stat-card">
-                    <h3>Staff Requests</h3>
+                    <h3>My Requests</h3>
                     <div class="value"><?= $totalRequests ?></div>
-                    <p>Total transfer requests</p>
+                    <p>Total submitted by you</p>
                     <i class="fa-solid fa-file-invoice card-icon"></i>
                 </div>
 
                 <div class="stat-card">
-                    <h3>Pending</h3>
+                    <h3>My Pending</h3>
                     <div class="value" style="color: var(--primary-orange);"><?= $pendingRequests ?></div>
-                    <p>Awaiting admin action</p>
+                    <p>Awaiting admin approval</p>
                     <i class="fa-solid fa-hourglass-half card-icon"></i>
                 </div>
 
-                <div class="stat-card">
-                    <h3>Approved</h3>
+                <div class="stat-card" style="border-left-color: var(--success-green);">
+                    <h3>My Approved</h3>
                     <div class="value" style="color: var(--success-green);"><?= $approvedRequests ?></div>
-                    <p>Successfully processed</p>
+                    <p>Requests processed</p>
                     <i class="fa-solid fa-circle-check card-icon"></i>
                 </div>
             </div>
 
             <div class="bottom-row">
                 <div class="content-box">
-                    <h2><i class="fa-solid fa-chart-line" style="color:var(--primary-orange)"></i> Sales Performance</h2>
-                    <div style="height: 320px;"><canvas id="salesTrendChart"></canvas></div>
-                </div>
-
-                <div class="content-box">
-                    <h2><i class="fa-solid fa-list-ul" style="color:var(--primary-orange)"></i> Recent Activity</h2>
-                    <?php if(!empty($recentOrders)): ?>
-                        <?php foreach ($recentOrders as $order): ?>
+                    <h2><i class="fa-solid fa-clock-rotate-left" style="color:var(--primary-orange)"></i> Recent Activity (Transfers & Orders)</h2>
+                    <?php if(!empty($recentActivity)): ?>
+                        <?php foreach ($recentActivity as $act): ?>
                             <div class="activity-item">
-                                <div class="activity-icon"><i class="fa-solid fa-cart-shopping"></i></div>
-                                <div style="flex-grow: 1;">
-                                    <div style="font-size: 0.85rem; font-weight: 700;"><?= e($order['product_name']) ?></div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);"><?= e($order['customer_name'] ?? 'Direct Sale') ?></div>
+                                <div class="activity-icon">
+                                    <?php if($act['activity_type'] === 'Transfer'): ?>
+                                        <i class="fa-solid fa-right-left"></i>
+                                    <?php else: ?>
+                                        <i class="fa-solid fa-cart-shopping" style="color: #3498db;"></i>
+                                    <?php endif; ?>
                                 </div>
-                                <span class="status-badge status-<?= strtolower($order['status']) ?>"><?= e($order['status']) ?></span>
+                                <div style="flex-grow: 1;">
+                                    <div style="font-size: 0.85rem; font-weight: 700;">
+                                        <span style="color: var(--text-muted); font-weight: 400; font-size: 0.7rem;">[<?= e($act['activity_type']) ?>]</span> 
+                                        <?= e($act['main_label']) ?>
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                        Qty: <?= e($act['quantity']) ?> 
+                                        
+                                        <?php if(!empty($act['product_name'])): ?>
+                                            | Product: <span style="color:var(--primary-orange)"><?= e($act['product_name']) ?></span>
+                                        <?php endif; ?>
+                                        
+                                        <?php if(!empty($act['variation'])): ?>
+                                            | Var: <span><?= e($act['variation']) ?></span>
+                                        <?php endif; ?>
+                                        
+                                        | <?= date('M d, g:i A', strtotime($act['created_at'])) ?>
+                                    </div>
+                                </div>
+                                <span class="status-badge status-<?= strtolower($act['status']) ?>">
+                                    <?= e($act['status']) ?>
+                                </span>
                             </div>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <p style="text-align:center; color:var(--text-muted); padding:20px;">No recent transactions found.</p>
+                        <p style="text-align:center; color:var(--text-muted); padding:20px;">No recent activity yet.</p>
                     <?php endif; ?>
                 </div>
             </div>
@@ -235,43 +249,6 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
     </div>
 
     <script>
-        const ctx = document.getElementById('salesTrendChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: <?= json_encode($labels) ?>,
-                datasets: [{
-                    label: 'Revenue',
-                    data: <?= json_encode($values) ?>,
-                    borderColor: '#f28c28',
-                    backgroundColor: 'rgba(242, 140, 40, 0.05)',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#fff',
-                    pointBorderColor: '#f28c28'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { 
-                    y: { 
-                        beginAtZero: true,
-                        suggestedMax: 1000,
-                        grid: { color: "#f3f3f3", drawBorder: false },
-                        ticks: { font: { size: 11 }, callback: v => '₱' + v.toLocaleString() }
-                    },
-                    x: {
-                        grid: { display: false, drawBorder: false },
-                        ticks: { font: { size: 11 } }
-                    }
-                }
-            }
-        });
-
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             document.querySelector('.sidebar').classList.toggle('active');
         });
