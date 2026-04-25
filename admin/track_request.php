@@ -1,14 +1,10 @@
 <?php
 session_start();
 require_once "../auth/conn.php";
-
-/**
- * STATUS UPDATE LOGIC
- */
 if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['type'])) {
     $id = $_GET['id'];
     $action = $_GET['action'];
-    $type = $_GET['type']; // 'transfer' or 'report'
+    $type = $_GET['type'];
     $newStatus = ($action === 'approve') ? 'Approved' : 'Declined';
 
     try {
@@ -28,18 +24,14 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['type'])) {
     }
 }
 
-/**
- * FETCH DATA WITH JOIN (To get user names)
- */
 try {
-    // Fetch Transfers + Requester Name
     $sql_transfers = "SELECT t.*, u.name 
-                      FROM transfer_requests t 
-                      JOIN users u ON t.user_id = u.id 
-                      ORDER BY FIELD(t.status, 'Pending', 'Approved', 'Declined'), t.request_date DESC";
+            FROM transfer_requests t 
+            JOIN users u ON t.user_id = u.id 
+            ORDER BY FIELD(t.status, 'Pending', 'Approved', 'Declined'), t.request_date DESC";
+
     $transfer_requests = $pdo->query($sql_transfers)->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Fetch Reports + Requester Name
+
     $sql_reports = "SELECT r.*, u.name 
                     FROM basic_reports r 
                     JOIN users u ON r.user_id = u.id 

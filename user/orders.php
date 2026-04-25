@@ -7,18 +7,16 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     exit();
 }
 
+// Get the current logged-in user's ID
+$current_user_id = $_SESSION['user_id'];
 
-/**
- * 1. SAVE ORDER LOGIC
- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     $customer_name = $_POST['customer_name'];
     $product_id = $_POST['product_id']; 
     $quantity = (int)$_POST['quantity'];
-    $delivery = $_POST['estimated_delivery']; 
-    $user_id = $_SESSION['user_id'] ?? 0; 
+    $method = $_POST['fulfillment_method']; 
+    $user_id = $current_user_id; // Explicitly use the logged-in user's ID
 
-    // Fetch product info for Snapshot
     $stmt_product = $pdo->prepare("SELECT product_name, price, variation FROM products WHERE id = ?");
     $stmt_product->execute([$product_id]);
     $product_info = $stmt_product->fetch();
@@ -29,7 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
         $unit_price = $product_info['price'];
         $total_price = $unit_price * $quantity;
 
-        // Matches your database snapshot entities
         $sql = "INSERT INTO orders (
                     product_id, 
                     user_id, 
@@ -39,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
                     unit_price, 
                     quantity, 
                     total_price, 
-                    estimated_delivery,
+                    fulfillment_method,
                     status
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')";
         
@@ -53,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
             $unit_price, 
             $quantity, 
             $total_price,
-            $delivery
+            $method
         ]);
 
         header("Location: orders.php?success=1");
@@ -61,16 +58,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     }
 }
 
-// Fetch products for dropdown
+// Fetch only products available
 $all_products = $pdo->query("SELECT id, product_name, price FROM products")->fetchAll();
 
-/**
- * 2. FETCH LOGIC (Staff Name Removed)
- */
-$all_orders = $pdo->query("SELECT o.*, p.category 
+// UPDATED: Fetch ONLY orders belonging to the logged-in staff member
+$stmt_all_orders = $pdo->prepare("SELECT o.*, p.category 
                             FROM orders o 
                             LEFT JOIN products p ON o.product_id = p.id 
-                            ORDER BY o.created_at DESC")->fetchAll();
+                            WHERE o.user_id = ? 
+                            ORDER BY o.created_at DESC");
+$stmt_all_orders->execute([$current_user_id]);
+$all_orders = $stmt_all_orders->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -87,7 +85,6 @@ $all_orders = $pdo->query("SELECT o.*, p.category
     <script src="https://cdn.jsdelivr.net/npm/table-to-excel@1.0.4/dist/tableToExcel.min.js"></script>
 
     <style>
-        /* --- ORIGINAL CSS PRESERVED --- */
         .order-section { padding: 20px; }
         .order-title-bar { background-color: #f28c28; color: white; padding: 12px; border-radius: 25px; text-align: center; font-weight: bold; margin-bottom: 30px; max-width: 600px; margin: 0 auto 30px auto; }
         .orders-table { width: 100%; background: white; border-collapse: collapse; border: 1px solid #ddd; }
@@ -141,26 +138,34 @@ $all_orders = $pdo->query("SELECT o.*, p.category
                             <th>Product Details</th>
                             <th>Qty</th>
                             <th>Total Price</th>
+                            <th>Fulfillment Method</th>
                             <th>Status</th> 
-                            <th>Estimated Delivery</th>
+                            <th>Order Date</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($all_orders as $row): ?>
-                        <tr>
-                            <td>#<?= $row['order_id'] ?></td>
-                            <td><?= htmlspecialchars($row['customer_name']) ?></td>
-                            <td><span class="category-badge"><?= htmlspecialchars($row['category'] ?? 'N/A') ?></span></td>
-                            <td>
-                                <strong><?= htmlspecialchars($row['product_name']) ?></strong><br>
-                                <small><?= htmlspecialchars($row['variation']) ?></small>
-                            </td>
-                            <td><?= $row['quantity'] ?></td>
-                            <td><strong>₱<?= number_format($row['total_price'], 2) ?></strong></td>
-                            <td><span class="status-<?= $row['status'] ?>"><?= $row['status'] ?></span></td>
-                            <td><?= $row['estimated_delivery'] ? date('M d, Y', strtotime($row['estimated_delivery'])) : 'N/A' ?></td>
-                        </tr>
-                        <?php endforeach; ?>
+                        <?php if (count($all_orders) > 0): ?>
+                            <?php foreach ($all_orders as $row): ?>
+                            <tr>
+                                <td>#<?= htmlspecialchars($row['order_id']) ?></td>
+                                <td><?= htmlspecialchars($row['customer_name']) ?></td>
+                                <td><span class="category-badge"><?= htmlspecialchars($row['category'] ?? 'N/A') ?></span></td>
+                                <td>
+                                    <strong><?= htmlspecialchars($row['product_name']) ?></strong><br>
+                                    <small><?= htmlspecialchars($row['variation']) ?></small>
+                                </td>
+                                <td><?= (int)$row['quantity'] ?></td>
+                                <td><strong>₱<?= number_format($row['total_price'], 2) ?></strong></td>
+                                <td><?= htmlspecialchars($row['fulfillment_method'] ?? 'N/A') ?></td>
+                                <td><span class="status-<?= htmlspecialchars($row['status']) ?>"><?= htmlspecialchars($row['status']) ?></span></td>
+                                <td><?= $row['created_at'] ? date('M d, Y', strtotime($row['created_at'])) : 'N/A' ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="9">No orders found for your account.</td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
                 
@@ -183,13 +188,17 @@ $all_orders = $pdo->query("SELECT o.*, p.category
                     <?php foreach ($all_products as $p): ?>
                         <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['product_name']) ?></option>
                     <?php endforeach; ?>
-                </select>
+                </select>               
                 
                 <label>Quantity:</label>
                 <input type="number" name="quantity" min="1" required>
 
-                <label>Estimated Delivery:</label>
-                <input type="date" name="estimated_delivery" required>
+                <label>Method:</label>
+                <select name="fulfillment_method" required>
+                    <option value="">-- Fulfillment Method --</option>
+                    <option value="Delivery">Delivery</option>
+                    <option value="Picked Up">Picked Up</option>
+                </select>
                 
                 <button type="submit" name="save_order" style="background: #f28c28; color: white; border: none; padding: 12px; width: 100%; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px;">Save Order</button>
             </form>

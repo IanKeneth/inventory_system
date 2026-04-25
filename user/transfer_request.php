@@ -2,16 +2,13 @@
 session_start();
 require_once "../auth/conn.php";
 
-// 1. Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../app/login.php");
     exit();
 }
 
-// Store the logged-in user's ID for easy use
 $current_user_id = $_SESSION['user_id'];
 
-// 2. Handle the Form Submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_transfer'])) {
     $item = $_POST['item_name'];
     $qty = $_POST['qty'];
@@ -21,12 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_transfer'])) {
     $notes = $_POST['notes'];
 
     try {
-        // ADDED 'user_id' to the columns and values below
         $sql = "INSERT INTO transfer_requests (user_id, item_name, qty, source_location, destination, request_date, notes, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending')";
-        
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending')";   
         $stmt = $pdo->prepare($sql);
-        // Pass $current_user_id as the first parameter
         $stmt->execute([$current_user_id, $item, $qty, $source, $dest, $date, $notes]);
         
         echo "<script>alert('Transfer Request Submitted!'); window.location.href='transfer_request.php';</script>";
@@ -35,9 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_transfer'])) {
     }
 }
 
-// 3. Fetch ONLY the requests belonging to this user
 try {
-    // ADDED WHERE clause to filter by the logged-in user
     $stmt = $pdo->prepare("SELECT * FROM transfer_requests WHERE user_id = ? ORDER BY created_at DESC");
     $stmt->execute([$current_user_id]);
     $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);

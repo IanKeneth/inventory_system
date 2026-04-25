@@ -2,7 +2,6 @@
 session_start();
 require_once '../auth/conn.php';
 
-// 1. Safety Check: Make sure the user is logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../app/login.php");
     exit();
@@ -10,7 +9,6 @@ if (!isset($_SESSION['user_id'])) {
 
 $current_user_id = $_SESSION['user_id'];
 
-// Handle Form Submission
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_report'])) {
     $product = $_POST['product_name'];
     $qty = $_POST['quantity'];
@@ -18,19 +16,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_report'])) {
     $desc = $_POST['description'];
     $category = $_POST['category'];
 
-    // 2. Added 'user_id' to the INSERT statement
     $sql = "INSERT INTO basic_reports (user_id, product_name, quantity_on_hand, report_title, description, category) 
             VALUES (?, ?, ?, ?, ?, ?)";
+            
     $stmt = $pdo->prepare($sql);
-    
-    // Pass the logged-in user's ID as the first value
     $stmt->execute([$current_user_id, $product, $qty, $title, $desc, $category]);
     
     header("Location: basic_reports.php");
     exit();
 }
 
-// 3. Fetch ONLY the reports belonging to the logged-in user
 $sql_fetch = "SELECT * FROM basic_reports WHERE user_id = ? ORDER BY created_at DESC";
 $stmt_fetch = $pdo->prepare($sql_fetch);
 $stmt_fetch->execute([$current_user_id]);

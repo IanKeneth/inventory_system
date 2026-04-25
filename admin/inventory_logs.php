@@ -26,11 +26,11 @@ $query = "SELECT
             il.type, 
             il.quantity, 
             il.reason, 
-            il.created_at 
+            il.log_date
             FROM inventory_logs il 
             JOIN products p ON il.product_id = p.id
             $whereSQL
-            ORDER BY il.created_at DESC";
+            ORDER BY il.log_date DESC";
 
 $stmt = $pdo->prepare($query);
 if (!empty($search)) {
@@ -55,7 +55,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'excel') {
 
     foreach ($logs as $row) {
         fputcsv($output, [
-            $row['created_at'],
+            $row['log_date'],
             $row['product_name'],
             $row['variation'],
             $row['type'],
@@ -195,11 +195,12 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
                 </div>
 
                 <div class="report-card">
+                    <div class="sidebar-overlay" id="sidebarOverlay"></div>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Timestamp</th>
+                                    <th>Log Date</th>
                                     <th>Product Details</th>
                                     <th>Movement</th>
                                     <th>Quantity</th>
@@ -211,8 +212,8 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
                                     <?php foreach ($logs as $log): ?>
                                         <tr>
                                             <td style="color:#64748b; font-size: 0.85rem;">
-                                                <i class="fa-regular fa-calendar-check"></i> <?= date('M d, Y', strtotime($log['created_at'])) ?><br>
-                                                <i class="fa-regular fa-clock"></i> <?= date('h:i A', strtotime($log['created_at'])) ?>
+                                                <i class="fa-regular fa-calendar-check"></i> <?= date('M d, Y', strtotime($log['log_date'])) ?><br>
+                                                <i class="fa-regular fa-clock"></i> <?= date('h:i A', strtotime($log['log_date'])) ?>
                                             </td>
                                             <td class="product-info">
                                                 <b><?= e($log['product_name']) ?></b>
@@ -246,5 +247,6 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
             </section>
         </main>
     </div>
+    <script src="..assets/sidebar.js"></script>
 </body>
 </html>

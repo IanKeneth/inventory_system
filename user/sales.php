@@ -2,18 +2,27 @@
 session_start();
 require_once "../auth/conn.php";
 
+// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../app/login.php");
     exit();
 }
 
+// Get current user ID from session
+$current_user_id = $_SESSION['user_id'];
+
 try {
-    
+    // UPDATED: Added WHERE o.user_id = ? to ensure staff only see their own sales
     $query = "SELECT o.order_id, p.product_name, o.customer_name, o.quantity, p.price, 
-            (o.quantity * p.price) AS total_amount, o.created_at FROM orders o
-            JOIN products p ON o.product_id = p.id WHERE o.status IN ('Approved', 'Delivered') ORDER BY o.created_at ASC";
+              (o.quantity * p.price) AS total_amount, o.created_at 
+              FROM orders o
+              JOIN products p ON o.product_id = p.id 
+              WHERE o.status IN ('Approved', 'Delivered') 
+              AND o.user_id = ? 
+              ORDER BY o.created_at ASC";
         
-    $stmt = $pdo->query($query);
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([$current_user_id]);
     $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     die("Error fetching sales: " . $e->getMessage());
@@ -34,7 +43,6 @@ try {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     
     <style>
-
         .sales-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin: 20px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .sales-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
         .sales-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -42,7 +50,6 @@ try {
         .sales-table td { padding: 15px; border-bottom: 1px solid #eee; font-size: 0.9rem; color: #444; }
         .amount-text { font-weight: bold; color: #27ae60; }
         
-
         .btn-group { display: flex; gap: 10px; position: relative; }
         .action-btn { border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; transition: 0.2s; }
         .report-btn { background: #2c3e50; color: white; }
@@ -78,7 +85,6 @@ try {
         .dropdown-content i { width: 20px; font-size: 1rem; }
         .show { display: block; }
 
-        /* Print Optimization */
         @media print {
             .sidebar, .btn-group, .hamburger-btn { display: none !important; }
             .main-content { margin: 0; padding: 0; width: 100%; }
@@ -111,7 +117,7 @@ try {
 
             <section class="sales-card">
                 <div class="sales-header">
-                    <h2><i class="fa-solid fa-coins" style="color: #f28c28;"></i> Recent Sales History</h2>
+                    <h2><i class="fa-solid fa-coins" style="color: #f28c28;"></i> Your Sales History</h2>
                     <div class="btn-group">
                         <button class="action-btn report-btn" id="reportDropdownBtn">
                             <i class="fa-solid fa-file-export"></i> Generate Report <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
@@ -148,17 +154,17 @@ try {
                         <?php if (count($sales) > 0): ?>
                             <?php foreach ($sales as $sale): ?>
                                 <tr>
-                                    <td>#<?= $sale['order_id'] ?></td>
+                                    <td>#<?= htmlspecialchars($sale['order_id']) ?></td>
                                     <td><strong><?= htmlspecialchars($sale['product_name']) ?></strong></td>
                                     <td><?= htmlspecialchars($sale['customer_name']) ?></td>
-                                    <td><?= $sale['quantity'] ?></td>
+                                    <td><?= (int)$sale['quantity'] ?></td>
                                     <td>₱<?= number_format($sale['price'], 2) ?></td>
                                     <td class="amount-text">₱<?= number_format($sale['total_amount'], 2) ?></td>
                                     <td><?= date('M d, Y', strtotime($sale['created_at'])) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <tr><td colspan="7" style="text-align:center; padding:40px; color:#999;">No approved sales records found.</td></tr>
+                            <tr><td colspan="7" style="text-align:center; padding:40px; color:#999;">No approved sales records .</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -186,6 +192,7 @@ try {
                 sheet: { name: "Approved Sales" }
             });
         });
+
         document.getElementById('exportPDF').addEventListener('click', function() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();

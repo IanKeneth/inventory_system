@@ -3,8 +3,6 @@ session_start();
 require_once '../auth/conn.php'; 
 
 /** @var PDO $pdo */
-
-// Restricted to Staff role only
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     header("Location: ../auth/login.php");
     exit();
@@ -13,11 +11,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
 $user_id = $_SESSION['user_id'];
 
 try {
-    // 1. INVENTORY ALERTS
+
     $productCount = $pdo->query("SELECT COUNT(*) FROM products")->fetchColumn();
     $lowStockCount = $pdo->query("SELECT COUNT(*) FROM products WHERE max_quantity > 0 AND (quantity / max_quantity) * 100 <= 15")->fetchColumn();
 
-    // 2. PERSONAL REQUEST TRACKING
     $stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM transfer_requests WHERE user_id = ?");
     $stmtTotal->execute([$user_id]);
     $totalRequests = $stmtTotal->fetchColumn();
@@ -30,9 +27,6 @@ try {
     $stmtApproved->execute([$user_id]);
     $approvedRequests = $stmtApproved->fetchColumn();
 
-    // 3. COMBINED RECENT ACTIVITY (Transfers + Orders)
-    // We use UNION to grab both types of records sorted by date
-   // 3. COMBINED RECENT ACTIVITY
     $query = "
         (SELECT 
             'Transfer' as activity_type, 

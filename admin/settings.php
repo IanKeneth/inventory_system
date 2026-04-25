@@ -194,12 +194,10 @@ try {
     </div>
 
     <script>
-        // Trigger Loading screen when form is submitted
         document.getElementById('profileForm').addEventListener('submit', function() {
             document.getElementById('loadingOverlay').style.display = 'flex';
         });
 
-        // Instant Preview
         document.getElementById('profile_upload').addEventListener('change', function() {
             const file = this.files[0];
             if (file) {
@@ -211,7 +209,6 @@ try {
             }
         });
         
-        // Auto-hide success message after 4 seconds
         setTimeout(() => {
             const msg = document.getElementById('successMsg');
             if(msg) msg.style.display = 'none';

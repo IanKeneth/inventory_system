@@ -20,7 +20,7 @@ $suppliers->execute($params);
 $suppliers = $suppliers->fetchAll();
 
 $totalSuppliers = $pdo->query("SELECT COUNT(*) FROM suppliers")->fetchColumn();
-$recentDeliveries = $pdo->query("SELECT COUNT(*) FROM inventory_logs WHERE type='In' AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetchColumn();
+$recentDeliveries = $pdo->query("SELECT COUNT(*) FROM inventory_logs WHERE type='In' AND log_date > DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetchColumn();
 ?>
 
 <!DOCTYPE html>

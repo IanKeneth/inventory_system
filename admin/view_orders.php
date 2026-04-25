@@ -2,55 +2,71 @@
 require_once "../auth/conn.php";
 session_start(); 
 
-/**
- * STATUS UPDATE LOGIC
- */
 if (isset($_POST['update_status'])) {
     $order_id = $_POST['order_id'];
     $new_status = trim($_POST['status']); 
     $decline_reason = isset($_POST['decline_reason']) ? trim($_POST['decline_reason']) : '';
 
+    // 1. Fetch current status
     $stmt = $pdo->prepare("SELECT status, quantity, product_id FROM orders WHERE order_id = ?");
     $stmt->execute([$order_id]);
     $current = $stmt->fetch();
 
     if ($current) {
+        $current_status = $current['status'];
+
+        // Define allowed transitions
+        $allowed_transitions = [
+            'Pending'   => ['Approved', 'Delivered', 'Declined'],
+            'Approved'  => [], // Final state
+            'Delivered' => [], // Final state
+            'Declined'  => [], // Final state
+        ];
+
+        // Block same status
+        if ($current_status === $new_status) {
+            header("Location: view_orders.php?error=" . urlencode("Order #$order_id is already marked as '$current_status'. No changes made."));
+            exit();
+        }
+
+        // Block invalid transitions
+        $allowed = $allowed_transitions[$current_status] ?? [];
+        if (!in_array($new_status, $allowed)) {
+            if (empty($allowed)) {
+                $msg = "Order #$order_id is already '$current_status' and cannot be changed anymore.";
+            } else {
+                $msg = "Order #$order_id is currently '$current_status'. You can only change it to: " . implode(' or ', $allowed) . ".";
+            }
+            header("Location: view_orders.php?error=" . urlencode($msg));
+            exit();
+        }
+
         try {
             $pdo->beginTransaction();
-            
-            // Logic: Deduct stock when status moves to 'Approved'
-            if ($current['status'] !== 'Approved' && $new_status === 'Approved') {
+
+            $old_status_have = strtolower(trim($current_status));
+            $new_status_have = strtolower($new_status);
+
+            // LOGIC: Deduct Inventory when status changes from Pending to Approved OR Delivered
+            $should_deduct = (
+                $old_status_have === 'pending' &&
+                in_array($new_status_have, ['approved', 'delivered'])
+            );
+
+            if ($should_deduct) {
                 $up = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ? AND quantity >= ?");
                 $up->execute([$current['quantity'], $current['product_id'], $current['quantity']]);
-                
+
                 if ($up->rowCount() == 0) {
-                    throw new Exception("Insufficient stock to approve this order!");
+                    throw new Exception("Insufficient stock in inventory to process this order!");
                 }
 
-                $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) 
-                                        VALUES (?, 'Out', ?, ?)");
-                $log_stmt->execute([
-                    $current['product_id'], 
-                    $current['quantity'], 
-                    "Order #" . $order_id . " Approved"
-                ]);
+                $reason_label = ucfirst($new_status_have);
+                $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) VALUES (?, 'Out', ?, ?)");
+                $log_stmt->execute([$current['product_id'], $current['quantity'], "Order #$order_id $reason_label"]);
             }
 
-            // Logic: Return stock if an 'Approved' order is changed back or 'Declined'
-            if ($current['status'] === 'Approved' && $new_status !== 'Approved') {
-                $up = $pdo->prepare("UPDATE products SET quantity = quantity + ? WHERE id = ?");
-                $up->execute([$current['quantity'], $current['product_id']]);
-
-                $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) 
-                                        VALUES (?, 'In', ?, ?)");
-                $log_stmt->execute([
-                    $current['product_id'], 
-                    $current['quantity'], 
-                    "Order #" . $order_id . " Status Changed from Approved"
-                ]);
-            }
-
-            // Update the actual order status (Matches your new SQL entities)
+            // Update the Order Status
             $update = $pdo->prepare("UPDATE orders SET status = ?, decline_reason = ? WHERE order_id = ?");
             $update->execute([$new_status, $decline_reason, $order_id]);
 
@@ -65,21 +81,16 @@ if (isset($_POST['update_status'])) {
     }
 }
 
-/**
- * FETCH ORDERS (Matched to your snapshot columns)
- */
-/**
- * FETCH ORDERS
- * Changed JOIN to LEFT JOIN so orders show up even if user/product data is missing
- */
-/**
- * FETCH ORDERS
- * Changed u.full_name to u.name to match your database
- */
-$all_orders = $pdo->query("SELECT 
-                                o.*, 
-                                u.name as staff_name,
-                                p.quantity as current_stock_level
+// Allowed options per current status (for dropdown rendering)
+$transition_map = [
+    'Pending'   => ['Pending', 'Approved', 'Delivered', 'Declined'],
+    'Approved'  => ['Approved'],
+    'Delivered' => ['Delivered'],
+    'Declined'  => ['Declined'],
+];
+
+// Fetch list
+$all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as current_stock_level
                             FROM orders o 
                             LEFT JOIN users u ON o.user_id = u.id 
                             LEFT JOIN products p ON o.product_id = p.id 
@@ -102,20 +113,28 @@ $all_orders = $pdo->query("SELECT
         .orders-table td { padding: 15px 18px; border-bottom: 1px solid #eee; font-size: 0.9rem; color: #444; text-align: center; vertical-align: middle; }
         .badge { padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; display: inline-block; min-width: 100px; text-align: center; }
 
-        .status-Pending { background: #fff3cd; color: #856404; }
-        .status-Approved { background: #d4edda; color: #155724; }
+        .status-Pending   { background: #fff3cd; color: #856404; }
+        .status-Approved  { background: #d4edda; color: #155724; }
         .status-Delivered { background: #e2e3e5; color: #383d41; }
-        .status-Declined { background: #f8d7da; color: #721c24; }
+        .status-Declined  { background: #f8d7da; color: #721c24; }
         
         .reason-text { display: block; font-size: 0.75rem; color: #d9534f; margin-top: 4px; font-style: italic; }
         .decline-box { display: none; margin-top: 5px; }
         .decline-input { padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; width: 150px; }
         
-        .update-btn { background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        .update-btn { background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; }
+        .update-btn:hover { background: #d6761d; }
+        .update-btn:disabled { background: #ccc; cursor: not-allowed; }
+
         .status-select { padding: 8px; border-radius: 6px; border: 1px solid #ddd; }
+        .status-select:disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
+        .status-select option:disabled { color: #bbb; }
+
         .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: 500; }
-        .alert-success { background: #d4edda; color: #155724; }
-        .alert-error { background: #f8d7da; color: #721c24; }
+        .alert-success { background: #d4edda; color: #155724; border-left: 5px solid #28a745; }
+        .alert-error   { background: #f8d7da; color: #721c24; border-left: 5px solid #dc3545; }
+
+        .final-badge { font-size: 0.75rem; color: #999; font-style: italic; display: block; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -126,7 +145,7 @@ $all_orders = $pdo->query("SELECT
                 <a href="index.php" class="nav-item"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
                 <a href="inventory.php" class="nav-item"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
                 <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
-                <a href="inventory_logs.php" class="nav-item "><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
+                <a href="inventory_logs.php" class="nav-item"><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
                 <a href="track_request.php" class="nav-item"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
                 <a href="view_orders.php" class="nav-item active"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
                 <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
@@ -147,7 +166,7 @@ $all_orders = $pdo->query("SELECT
 
             <section class="admin-section">
                 <?php if(isset($_GET['success'])): ?>
-                    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Order updated successfully!</div>
+                    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Order status updated successfully!</div>
                 <?php endif; ?>
                 
                 <?php if(isset($_GET['error'])): ?>
@@ -159,52 +178,64 @@ $all_orders = $pdo->query("SELECT
                         <thead>
                             <tr>
                                 <th>Order ID</th>
-                                <th>Listed By</th>
                                 <th>Customer</th>
-                                <th>Product (Snapshot)</th>
+                                <th>Product</th>
                                 <th>Qty</th>
-                                <th>Total Price</th>
                                 <th>Status</th>
                                 <th>Action</th>
+                                <th>Order Date</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($all_orders as $row): 
-                                $display_status = $row['status'];
+                            <?php 
+                            $all_status_options = ['Pending', 'Approved', 'Delivered', 'Declined'];
+                            foreach ($all_orders as $row): 
+                                $s = $row['status'];
+                                $allowed_opts = $transition_map[$s] ?? [$s];
+                                $is_final = in_array($s, ['Approved', 'Delivered', 'Declined']);
                             ?>
                             <tr>
                                 <td>#<?= $row['order_id'] ?></td>
-                                <td><strong><?= htmlspecialchars($row['staff_name'] ?? 'Unknown') ?></strong></td>
                                 <td><?= htmlspecialchars($row['customer_name']) ?></td>
                                 <td>
                                     <strong><?= htmlspecialchars($row['product_name']) ?></strong><br>
-                                    <small><?= htmlspecialchars($row['variation']) ?> (₱<?= number_format($row['unit_price'], 2) ?>)</small>
+                                    <small>Stock: <?= $row['current_stock_level'] ?></small>
                                 </td>
                                 <td><?= $row['quantity'] ?></td>
-                                <td style="color: #27ae60; font-weight: bold;">₱<?= number_format($row['total_price'], 2) ?></td>
                                 <td>
-                                    <span class="badge status-<?= $display_status ?>"><?= $display_status ?></span>
-                                    <?php if($display_status === 'Declined' && !empty($row['decline_reason'])): ?>
+                                    <span class="badge status-<?= $s ?>"><?= $s ?></span>
+                                    <?php if($s === 'Declined' && !empty($row['decline_reason'])): ?>
                                         <span class="reason-text">Reason: <?= htmlspecialchars($row['decline_reason']) ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <form method="POST" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
-                                        <div style="display: flex; gap: 8px;">
+                                    <?php if ($is_final): ?>
+                                        <!-- Final state: no action allowed -->
+                                        <span class="final-badge"><i class="fa-solid fa-lock"></i> No further changes allowed</span>
+                                    <?php else: ?>
+                                        <form method="POST" onsubmit="return confirmUpdate(this);" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
                                             <input type="hidden" name="order_id" value="<?= $row['order_id'] ?>">
-                                            <select name="status" class="status-select" onchange="checkDecline(this)">
-                                                <option value="Pending" <?= $display_status == 'Pending' ? 'selected' : '' ?>>Pending</option>
-                                                <option value="Approved" <?= $display_status == 'Approved' ? 'selected' : '' ?>>Approved</option>
-                                                <option value="Delivered" <?= $display_status == 'Delivered' ? 'selected' : '' ?>>Delivered</option>
-                                                <option value="Declined" <?= $display_status == 'Declined' ? 'selected' : '' ?>>Declined</option>
-                                            </select>
-                                            <button type="submit" name="update_status" class="update-btn"><i class="fa-solid fa-check"></i></button>
-                                        </div>
-                                        <div class="decline-box">
-                                            <input type="text" name="decline_reason" class="decline-input" placeholder="Reason?">
-                                        </div>
-                                    </form>
+                                            <input type="hidden" name="current_status" value="<?= $s ?>">
+                                            <div style="display: flex; gap: 8px;">
+                                                <select name="status" class="status-select" onchange="checkDecline(this)">
+                                                    <?php foreach ($all_status_options as $opt): 
+                                                        $selected = ($s === $opt) ? 'selected' : '';
+                                                        $disabled = !in_array($opt, $allowed_opts) ? 'disabled' : '';
+                                                    ?>
+                                                        <option value="<?= $opt ?>" <?= $selected ?> <?= $disabled ?>><?= $opt ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <button type="submit" name="update_status" class="update-btn">
+                                                    <i class="fa-solid fa-check"></i>
+                                                </button>
+                                            </div>
+                                            <div class="decline-box">
+                                                <input type="text" name="decline_reason" class="decline-input" placeholder="Reason for declining?">
+                                            </div>
+                                        </form>
+                                    <?php endif; ?>
                                 </td>
+                                <td><?= $row['created_at'] ? date('M d, Y', strtotime($row['created_at'])) : 'N/A' ?></td>
                             </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -215,10 +246,26 @@ $all_orders = $pdo->query("SELECT
     </div>
 
     <script>
+        // Sidebar Toggle
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             document.querySelector('.sidebar').classList.toggle('collapsed');
         });
 
+        // Confirm before submitting — warn if same status selected
+        function confirmUpdate(form) {
+            const selectedStatus = form.status.value;
+            const currentStatus = form.current_status.value;
+            const orderId = form.order_id.value;
+
+            if (selectedStatus === currentStatus) {
+                alert(`Order #${orderId} is already marked as "${currentStatus}". Please select a different status.`);
+                return false;
+            }
+
+            return confirm(`Update Order #${orderId} status from "${currentStatus}" to "${selectedStatus}"?`);
+        }
+
+        // Show/Hide Decline Reason Box
         function checkDecline(select) {
             const container = select.closest('form');
             const reasonBox = container.querySelector('.decline-box');

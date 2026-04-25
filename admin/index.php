@@ -10,22 +10,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 try {
-    // REVENUE QUERIES 
     $totalSales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved'")->fetchColumn();
+
     $dailySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND DATE(created_at) = CURDATE()")->fetchColumn();
     $monthlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
     $yearlySales = $pdo->query("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status = 'Approved' AND YEAR(created_at) = YEAR(CURDATE())")->fetchColumn();
 
-    // INVENTORY & ALERTS
     $productCount = $pdo->query("SELECT COUNT(*) FROM products")->fetchColumn();
     $lowStockCount = $pdo->query("SELECT COUNT(*) FROM products WHERE max_quantity > 0 AND (quantity / max_quantity) * 100 <= 15")->fetchColumn();
 
-    //REQUEST TRACKING
     $totalRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests")->fetchColumn();
     $pendingRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests WHERE status = 'Pending'")->fetchColumn();
     $approvedRequests = $pdo->query("SELECT COUNT(*) FROM transfer_requests WHERE status = 'Approved'")->fetchColumn();
 
-    // RECENT ACTIVITY
     $stmt = $pdo->query("SELECT o.*, p.product_name FROM orders o 
                         JOIN products p ON o.product_id = p.id 
                         ORDER BY o.created_at DESC LIMIT 5");
@@ -57,44 +54,18 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary-orange: #f28c28;
-            --success-green: #27ae60;
-            --danger-red: #e74c3c;
-            --text-main: #2c3e50;
-            --text-muted: #858796;
-            --card-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+            --primary-orange: #f28c28;--success-green: #27ae60;--danger-red: #e74c3c;
+            --text-main: #2c3e50;--text-muted: #858796;--card-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
         }
-
         body { background-color: #f8f9fc; color: var(--text-main); font-family: 'Inter', sans-serif; }
-
         .dashboard-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
-            gap: 24px; 
-            padding: 25px; 
-        }
-
-
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; padding: 25px; }
         .stat-card { 
-            background: white; 
-            padding: 24px; 
-            border-radius: 12px; 
-            box-shadow: var(--card-shadow); 
-            border-left: 5px solid var(--primary-orange);
-            position: relative; 
-            transition: transform 0.2s ease;
-        }
+            background: white; padding: 24px; border-radius: 12px; box-shadow: var(--card-shadow);
+            border-left: 5px solid var(--primary-orange);position: relative; transition: transform 0.2s ease;}
         .stat-card:hover { transform: translateY(-4px); }
-
         .stat-card h3 { 
-            font-size: 0.75rem; 
-            font-weight: 700; 
-            text-transform: uppercase; 
-            letter-spacing: 0.1em; 
-            color: var(--primary-orange); 
-            margin-bottom: 8px;
-        }
-
+            font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary-orange); margin-bottom: 8px;}
         .stat-card .value { font-size: 1.75rem; font-weight: 800; color: #4e73df; color: var(--text-main); }
         .stat-card p { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
 
@@ -277,6 +248,11 @@ function e($value) { return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
 
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             document.querySelector('.sidebar').classList.toggle('active');
+        });
+        
+        const sidebar = document.querySelector('.sidebar');
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
         });
     </script>
 </body>
