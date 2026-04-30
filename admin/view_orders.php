@@ -7,7 +7,6 @@ if (isset($_POST['update_status'])) {
     $new_status = trim($_POST['status']); 
     $decline_reason = isset($_POST['decline_reason']) ? trim($_POST['decline_reason']) : '';
 
-    // 1. Fetch current status
     $stmt = $pdo->prepare("SELECT status, quantity, product_id FROM orders WHERE order_id = ?");
     $stmt->execute([$order_id]);
     $current = $stmt->fetch();
@@ -15,12 +14,11 @@ if (isset($_POST['update_status'])) {
     if ($current) {
         $current_status = $current['status'];
 
-        // Define allowed transitions
         $allowed_transitions = [
             'Pending'   => ['Approved', 'Delivered', 'Declined'],
-            'Approved'  => [], // Final state
-            'Delivered' => [], // Final state
-            'Declined'  => [], // Final state
+            'Approved'  => [], 
+            'Delivered' => [], 
+            'Declined'  => [],
         ];
 
         // Block same status
@@ -29,7 +27,7 @@ if (isset($_POST['update_status'])) {
             exit();
         }
 
-        // Block invalid transitions
+
         $allowed = $allowed_transitions[$current_status] ?? [];
         if (!in_array($new_status, $allowed)) {
             if (empty($allowed)) {
@@ -47,7 +45,6 @@ if (isset($_POST['update_status'])) {
             $old_status_have = strtolower(trim($current_status));
             $new_status_have = strtolower($new_status);
 
-            // LOGIC: Deduct Inventory when status changes from Pending to Approved OR Delivered
             $should_deduct = (
                 $old_status_have === 'pending' &&
                 in_array($new_status_have, ['approved', 'delivered'])
@@ -66,7 +63,6 @@ if (isset($_POST['update_status'])) {
                 $log_stmt->execute([$current['product_id'], $current['quantity'], "Order #$order_id $reason_label"]);
             }
 
-            // Update the Order Status
             $update = $pdo->prepare("UPDATE orders SET status = ?, decline_reason = ? WHERE order_id = ?");
             $update->execute([$new_status, $decline_reason, $order_id]);
 
@@ -81,7 +77,6 @@ if (isset($_POST['update_status'])) {
     }
 }
 
-// Allowed options per current status (for dropdown rendering)
 $transition_map = [
     'Pending'   => ['Pending', 'Approved', 'Delivered', 'Declined'],
     'Approved'  => ['Approved'],
@@ -89,7 +84,6 @@ $transition_map = [
     'Declined'  => ['Declined'],
 ];
 
-// Fetch list
 $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as current_stock_level
                             FROM orders o 
                             LEFT JOIN users u ON o.user_id = u.id 
@@ -180,6 +174,7 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
                                 <th>Order ID</th>
                                 <th>Customer</th>
                                 <th>Product</th>
+                                <th>Variation</th>
                                 <th>Qty</th>
                                 <th>Status</th>
                                 <th>Action</th>
@@ -201,6 +196,7 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
                                     <strong><?= htmlspecialchars($row['product_name']) ?></strong><br>
                                     <small>Stock: <?= $row['current_stock_level'] ?></small>
                                 </td>
+                                <td><?= htmlspecialchars($row['variation']) ?></td>
                                 <td><?= $row['quantity'] ?></td>
                                 <td>
                                     <span class="badge status-<?= $s ?>"><?= $s ?></span>

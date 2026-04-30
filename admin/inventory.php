@@ -6,8 +6,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: ../auth/login.php");
     exit();
 }
-function e($value) {
-    return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+/** @param mixed $value */
+function e($value): string { 
+    return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8'); 
 }
 ?>
 <!DOCTYPE html>
@@ -19,14 +20,12 @@ function e($value) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
     <style>
-        /* --- LAYOUT & SIDEBAR --- */
         .header-left {display: flex;align-items: center;width: 96%;}
         .search-container {position: relative;max-width: 300px;width: 100%;margin-left: auto;}
         .search-container i {position: absolute;left: 15px;top: 50%;transform: translateY(-50%); color: #7f8c8d;}
         .search-container input {width: 100%;padding: 10px 10px 10px 40px;border: 1px solid #ddd;border-radius: 25px;outline: none;transition: 0.3s;}
         .inventory-container { padding: 25px; min-height: 100vh; background: #f9f9f9; }
 
-        /* --- MODERN CARD GRID (NO TABLE) --- */
         .inventory-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -47,7 +46,6 @@ function e($value) {
         }
         .product-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
 
-        /* Image Styling */
         .card-image-wrapper {
             width: 100%;
             height: 200px;
@@ -59,24 +57,29 @@ function e($value) {
             border-bottom: 1px solid #f9f9f9;
         }
         .card-image-wrapper img { max-width: 100%; max-height: 100%; object-fit: contain; }
-
-        /* Card Text Content */
         .card-info { padding: 20px; flex-grow: 1; }
         .card-category { font-size: 0.7rem; color: #f28c28; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; background: #fff3e0; display: inline-block; padding: 2px 8px; border-radius: 4px; }
         .card-title { font-size: 1.15rem; font-weight: 700; color: #2c3e50; margin: 8px 0; }
         .card-variation { font-size: 0.85rem; color: #7f8c8d; margin-bottom: 15px; font-style: italic; }
-
-        /* Card Footer (Price & Qty) */
+        .card-description {
+            display: block !important; /* Forces it to show */
+            visibility: visible !important;
+            opacity: 1 !important;
+            font-size: 0.8rem !important;
+            color: #555 !important;
+            line-height: 1.4 !important;
+            margin: 10px 0 !important;
+            height: auto !important; /* Prevents it from being squashed to 0px */
+            overflow: visible !important;
+        }
         .card-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid #f1f1f1; }
         .price-tag { font-size: 1.2rem; font-weight: 800; color: #2c3e50; }
         .qty-tag { font-size: 0.8rem; background: #e8f5e9; color: #2e7d32; padding: 5px 12px; border-radius: 20px; font-weight: 700; }
 
-        /* Action Buttons */
         .card-actions { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 8px; z-index: 5; }
         .action-btn { width: 35px; height: 35px; background: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; color: #555; transition: 0.2s; text-decoration: none; }
         .action-btn:hover { background: #f28c28; color: white; }
 
-        /* --- MODAL & FORM STYLES --- */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); justify-content: center; align-items: center; }
         .modal-content { background: #fff; width: 480px; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: slideDown 0.3s ease-out; }
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

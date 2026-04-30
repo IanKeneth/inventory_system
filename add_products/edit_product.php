@@ -1,4 +1,5 @@
 <?php 
+session_start(); // 1. Start session to get the logged-in user's ID
 require_once "../auth/conn.php";  
 /** @var PDO $pdo */ 
 
@@ -24,13 +25,17 @@ if (!$product) {
 if (isset($_POST['update_product'])) { 
     $name = trim($_POST['product_name']); 
     $category = trim($_POST['category']); 
+    $variation = trim($_POST['variation']); 
     $price = trim($_POST['price']); 
     $new_quantity = (int)$_POST['quantity']; 
     $max_quantity = (int)$_POST['max_quantity']; 
     $old_quantity = (int)$product['quantity'];
     
+    // 2. Get the current logged-in user ID
+    $current_user_id = $_SESSION['user_id'] ?? null; 
+
     // --- IMAGE HANDLING LOGIC ---
-    $image_name = $product['image_path']; // Keep existing image by default
+    $image_name = $product['image_path']; 
 
     if (isset($_FILES['product_image']) && $_FILES['product_image']['error'] === 0) {
         $target_dir = "../uploads/";
@@ -39,13 +44,11 @@ if (isset($_POST['update_product'])) {
         $target_file = $target_dir . $image_name;
 
         if (move_uploaded_file($_FILES["product_image"]["tmp_name"], $target_file)) {
-            // Optional: Delete the old image file from folder if it's not the default
             if ($product['image_path'] && $product['image_path'] != 'default-product.png' && file_exists($target_dir . $product['image_path'])) {
                 unlink($target_dir . $product['image_path']);
             }
         }
     }
-    // ----------------------------
 
     if ($new_quantity > $max_quantity) { 
         echo "<script>
@@ -59,31 +62,34 @@ if (isset($_POST['update_product'])) {
         $pdo->beginTransaction();
 
         $sql = "UPDATE products 
-                SET product_name = :name, category = :cat, price = :price, 
+                SET product_name = :name, category = :cat, variation = :variation, price = :price, 
                     quantity = :qty, max_quantity = :max, image_path = :img 
                 WHERE id = :id"; 
 
         $stmt = $pdo->prepare($sql); 
         $stmt->execute([
-            ':name'  => $name,
-            ':cat'   => $category,
-            ':price' => $price,
-            ':qty'   => $new_quantity,
-            ':max'   => $max_quantity,
-            ':img'   => $image_name,
-            ':id'    => $id
+            ':name'   => $name,
+            ':cat'    => $category,
+            ':variation' => $variation,
+            ':price'  => $price,
+            ':qty'    => $new_quantity,
+            ':max'    => $max_quantity,
+            ':img'    => $image_name,
+            ':id'     => $id
         ]);
 
         if ($new_quantity !== $old_quantity) {
             $diff = abs($new_quantity - $old_quantity);
             $type = ($new_quantity > $old_quantity) ? 'In' : 'Out';
-            $reason = "Manual Adjustment (Edit Profile)";
+            $reason = "Manual Adjustment ";
 
-            $log_sql = "INSERT INTO inventory_logs (product_id, type, quantity, reason) 
-                        VALUES (:pid, :type, :qty, :reason)";
+            // 3. UPDATED LOG QUERY: Added user_id
+            $log_sql = "INSERT INTO inventory_logs (product_id, user_id, type, quantity, reason, log_date) 
+                        VALUES (:pid, :uid, :type, :qty, :reason, NOW())";
             $log_stmt = $pdo->prepare($log_sql);
             $log_stmt->execute([
                 ':pid'    => $id,
+                ':uid'    => $current_user_id, // Pass the admin/staff ID here
                 ':type'   => $type,
                 ':qty'    => $diff,
                 ':reason' => $reason
@@ -110,6 +116,7 @@ if (isset($_POST['update_product'])) {
     <meta charset="utf-8">
     <title>Edit Product - Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --primary: #f28c28; --secondary: #64748b; }
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
@@ -137,7 +144,7 @@ if (isset($_POST['update_product'])) {
             <img src="../uploads/<?php echo $product['image_path'] ?: 'default-product.png'; ?>" class="image-preview" id="preview">
             <div class="form-group">
                 <label>Change Product Image</label>
-                <input type="file" name="image_path" class="form-control" accept="image/*" onchange="previewImage(this)">
+                <input type="file" name="product_image" class="form-control" accept="image/*" onchange="previewImage(this)">
             </div>
         </div>
 
@@ -149,6 +156,16 @@ if (isset($_POST['update_product'])) {
         <div class="form-group">
             <label>Category</label>
             <input type="text" name="category" class="form-control" value="<?php echo e($product['category']); ?>" required>
+        </div>
+
+        <div class="form-group">
+            <label>Description</label>
+            <input type="text" name="description" class="form-control" value="<?php echo e($product['description']); ?>">
+        </div>
+
+        <div class="form-group">
+            <label>Variation</label>
+            <input type="text" name="variation" class="form-control" value="<?php echo e($product['variation']); ?>">
         </div>
 
         <div class="form-group">

@@ -21,6 +21,11 @@ $suppliers = $suppliers->fetchAll();
 
 $totalSuppliers = $pdo->query("SELECT COUNT(*) FROM suppliers")->fetchColumn();
 $recentDeliveries = $pdo->query("SELECT COUNT(*) FROM inventory_logs WHERE type='In' AND log_date > DATE_SUB(NOW(), INTERVAL 7 DAY)")->fetchColumn();
+
+/** @param mixed $value */
+function e($value): string { 
+    return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8'); 
+}
 ?>
 
 <!DOCTYPE html>

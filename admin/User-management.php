@@ -7,6 +7,11 @@ try {
 } catch (PDOException $e) {
     echo "Error: " . $e->getMessage();
 }
+
+/** @param mixed $value */
+function e($value): string { 
+    return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8'); 
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

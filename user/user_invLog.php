@@ -3,12 +3,19 @@ session_start();
 require_once "../auth/conn.php";
 /** @var PDO $pdo */ 
 
+$current_user_id = $_SESSION['user_id'] ?? 0;
+$user_role = $_SESSION['role'] ?? 'staff';
 
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'All';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 $whereClauses = [];
 $params = [];
+
+if ($user_role !== 'admin') {
+    $whereClauses[] = "il.user_id = :current_user_id";
+    $params[':current_user_id'] = $current_user_id;
+}
 
 if ($filter === 'In') {
     $whereClauses[] = "il.type = 'In'";
@@ -41,8 +48,10 @@ foreach ($params as $key => $val) {
 $stmt->execute();
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$totalIn = $pdo->query("SELECT SUM(quantity) FROM inventory_logs WHERE type = 'In'")->fetchColumn() ?? 0;
-$totalOut = $pdo->query("SELECT SUM(quantity) FROM inventory_logs WHERE type = 'Out'")->fetchColumn() ?? 0;
+$statsWhere = ($user_role !== 'admin') ? " WHERE user_id = $current_user_id " : "";
+
+$totalIn = $pdo->query("SELECT SUM(quantity) FROM inventory_logs $statsWhere " . ($statsWhere ? "AND" : "WHERE") . " type = 'In'")->fetchColumn() ?? 0;
+$totalOut = $pdo->query("SELECT SUM(quantity) FROM inventory_logs $statsWhere " . ($statsWhere ? "AND" : "WHERE") . " type = 'Out'")->fetchColumn() ?? 0;
 $netStock = $totalIn - $totalOut;
 
 /** @param mixed $value */
@@ -91,17 +100,20 @@ function e($value): string {
 <body>
     <div class="container">
         <aside class="sidebar">
-            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Admin Panel</span></div>
+            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Staff Inventory Log</span></div>
             <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item"><i class="fa-solid fa-chart-line"></i> <span>Dashboard</span></a>
-                <a href="inventory.php" class="nav-item"><i class="fa-solid fa-boxes-packing"></i> <span>Inventory</span></a>
-                <a href="supplies.php" class="nav-item"><i class="fa-solid fa-truck-ramp-box"></i> <span>Supplies</span></a>
-                <a href="inventory_logs.php" class="nav-item active"><i class="fa-solid fa-route"></i> <span>Inventory Logs</span></a>
-                <a href="track_request.php" class="nav-item"><i class="fa-solid fa-clipboard-list"></i> <span>Track Requests</span></a>
-                <a href="view_orders.php" class="nav-item"><i class="fa-solid fa-file-invoice-dollar"></i> <span>View Orders</span></a>
-                <a href="User-management.php" class="nav-item"><i class="fa-solid fa-users"></i> <span>User Management</span></a>
-                <a href="settings.php" class="nav-item"><i class="fa-solid fa-gears"></i> <span>Settings</span></a>
+                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+                <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-box"></i> <span>Inventory</span></a>
+                <a href="user_invLog.php" class="nav-item active"><i class="fa-solid fa-clock-rotate-left"></i> <span>Inventory_Log</span></a>
+                <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>My Transfers</span></a>
+                <a href="sales.php" class="nav-item "><i class="fa-solid fa-coins"></i> <span>Sales</span></a>
+                <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Orders</span></a>
+                <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>My Reports</span></a>
+                <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
+            <div class="sidebar-footer">
+                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
+            </div>
         </aside>
 
         <main class="main-content">

@@ -41,8 +41,8 @@ try {
     $pdo->beginTransaction();
 
     $sql = "INSERT INTO products 
-                (category, product_name, variation, description, price, quantity, max_quantity, image_path, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)";
+                (category, product_name, variation, description, price, quantity, max_quantity, image_path) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
