@@ -3,8 +3,14 @@ session_start();
 require_once "../auth/conn.php";
 /** @var PDO $pdo */ 
 
-$current_user_id = $_SESSION['user_id'] ?? 0;
-$user_role = $_SESSION['role'] ?? 'staff';
+// 1. Session & Role Check
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../login.php");
+    exit();
+}
+
+$current_user_id = $_SESSION['user_id'];
+$user_role = $_SESSION['role'] ?? 'Staff'; 
 
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'All';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
@@ -12,7 +18,8 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $whereClauses = [];
 $params = [];
 
-if ($user_role !== 'admin') {
+// 2. Permission Logic: Only Staff are restricted to their own ID
+if ($user_role !== 'Admin') {
     $whereClauses[] = "il.user_id = :current_user_id";
     $params[':current_user_id'] = $current_user_id;
 }
@@ -30,6 +37,7 @@ if (!empty($search)) {
 
 $whereSQL = !empty($whereClauses) ? " WHERE " . implode(" AND ", $whereClauses) : "";
 
+// 3. Main Query
 $query = "SELECT 
             il.*, 
             p.product_name, 
@@ -48,11 +56,17 @@ foreach ($params as $key => $val) {
 $stmt->execute();
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$statsWhere = ($user_role !== 'admin') ? " WHERE user_id = $current_user_id " : "";
+// 4. Restricted Summary Totals
+$sumWhere = ($user_role !== 'Admin') ? " WHERE user_id = :uid" : "";
+$sumParams = ($user_role !== 'Admin') ? [':uid' => $current_user_id] : [];
 
-$totalIn = $pdo->query("SELECT SUM(quantity) FROM inventory_logs $statsWhere " . ($statsWhere ? "AND" : "WHERE") . " type = 'In'")->fetchColumn() ?? 0;
-$totalOut = $pdo->query("SELECT SUM(quantity) FROM inventory_logs $statsWhere " . ($statsWhere ? "AND" : "WHERE") . " type = 'Out'")->fetchColumn() ?? 0;
-$netStock = $totalIn - $totalOut;
+$tIn = $pdo->prepare("SELECT SUM(quantity) FROM inventory_logs $sumWhere " . ($sumWhere ? " AND " : " WHERE ") . " type = 'In'");
+$tIn->execute($sumParams);
+$totalIn = $tIn->fetchColumn() ?? 0;
+
+$tOut = $pdo->prepare("SELECT SUM(quantity) FROM inventory_logs $sumWhere " . ($sumWhere ? " AND " : " WHERE ") . " type = 'Out'");
+$tOut->execute($sumParams);
+$totalOut = $tOut->fetchColumn() ?? 0;
 
 /** @param mixed $value */
 function e($value): string { 
@@ -64,17 +78,11 @@ function e($value): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track & Reports - Admin Panel</title>
+    <title>Track & Reports - <?= e($user_role) ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
     <style>
-        :root {
-            --primary: #f28c28;
-            --success: #27ae60;
-            --danger: #e53e3e;
-            --bg-light: #f8fafc;
-            --text-dark: #1e293b;
-        }
+        :root { --primary: #f28c28; --success: #27ae60; --danger: #e53e3e; --bg-light: #f8fafc; }
         .report-container { padding: 30px; background: var(--bg-light); min-height: 100vh; }
         .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
         .s-card { background: white; padding: 20px; border-radius: 16px; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
@@ -100,27 +108,24 @@ function e($value): string {
 <body>
     <div class="container">
         <aside class="sidebar">
-            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Staff Inventory Log</span></div>
-            <nav style="flex-grow: 1;">
-                <a href="index.php" class="nav-item "><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
+            <div class="sidebar-header"><i class="fa-solid fa-boxes-stacked"></i> <span>Admin Panel</span></div>
+           <nav style="flex-grow: 1;">
+                <a href="index.php" class="nav-item active"><i class="fa-solid fa-table-columns"></i> <span>Dashboard</span></a>
                 <a href="user_inventory.php" class="nav-item"><i class="fa-solid fa-box"></i> <span>Inventory</span></a>
-                <a href="user_invLog.php" class="nav-item active"><i class="fa-solid fa-clock-rotate-left"></i> <span>Inventory_Log</span></a>
+                <a href="user_invLog.php" class="nav-item"><i class="fa-solid fa-clock-rotate-left"></i> <span>Inventory_Log</span></a>
                 <a href="transfer_request.php" class="nav-item"><i class="fa-solid fa-right-left"></i> <span>My Transfers</span></a>
                 <a href="sales.php" class="nav-item "><i class="fa-solid fa-coins"></i> <span>Sales</span></a>
                 <a href="orders.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>Orders</span></a>
                 <a href="basic_reports.php" class="nav-item"><i class="fa-solid fa-pen-to-square"></i> <span>My Reports</span></a>
                 <a href="settings.php" class="nav-item"><i class="fa-solid fa-user-gear"></i> <span>Profile</span></a>
             </nav>
-            <div class="sidebar-footer">
-                <a href="../auth/logout.php" class="nav-item"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></a>
-            </div>
         </aside>
 
         <main class="main-content">
             <header class="header">
                 <div style="display:flex; align-items:center; gap:15px;">
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
-                    <h1>Inventory Activity Logs</h1>
+                    <h1><?= $user_role === 'Admin' ? 'Global Activity Logs' : 'My Activity Logs' ?></h1>
                 </div>
             </header>
 
@@ -170,7 +175,7 @@ function e($value): string {
                                         <?= date('h:i A', strtotime($log['log_date'])) ?>
                                     </td>
                                     <td class="staff-tag">
-                                        <i class="fa-solid fa-user-shield" style="color: var(--primary);"></i> 
+                                        <i class="fa-solid fa-user-<?= $log['staff_name'] == 'Admin' ? 'shield' : 'circle' ?>" style="color: var(--primary);"></i> 
                                         <?= e($log['staff_name'] ?? 'System') ?>
                                     </td>
                                     <td>

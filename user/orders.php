@@ -26,33 +26,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
         $unit_price = $product_info['price'];
         $total_price = $unit_price * $quantity;
 
-        $sql = "INSERT INTO orders (
-                    product_id, user_id, customer_name, product_name, 
-                    variation, unit_price, quantity,total_price, fulfillment_method,status) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $product_id, 
-            $user_id, 
-            $customer_name, 
-            $name, 
-            $variation,
-            $unit_price, 
-            $quantity, 
-            $total_price,
-            $method
-        ]);
+        // Start a Transaction to ensure both tables are updated or none at all
+        $pdo->beginTransaction();
 
-        header("Location: orders.php?success=1");
-        exit();
+        try {
+            // 1. Insert into Orders table
+            $sql_order = "INSERT INTO orders (
+                        product_id, user_id, customer_name, product_name, 
+                        variation, unit_price, quantity, total_price, fulfillment_method, status) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')";
+            
+            $stmt_order = $pdo->prepare($sql_order);
+            $stmt_order->execute([
+                $product_id, $user_id, $customer_name, $name, 
+                $variation, $unit_price, $quantity, $total_price, $method
+            ]);
+
+            // 2. Insert into inventory_logs table (This makes it show up in the staff activity logs)
+            // Note: Using 'type' and 'reason' as requested. 'type' is 'Out' because it is an order.
+            $sql_log = "INSERT INTO inventory_logs (product_id, user_id, quantity, type, reason, log_date) 
+                        VALUES (?, ?, ?, 'Out', ?, ?)";
+            
+            $stmt_log = $pdo->prepare($sql_log);
+            $stmt_log->execute([
+                $product_id, 
+                $user_id, 
+                $quantity, 
+                "New order created for customer: " . $customer_name
+            ]);
+
+            $pdo->commit();
+            header("Location: orders.php?success=1");
+            exit();
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            die("Error processing order: " . $e->getMessage());
+        }
     }
 }
+
+// Fetch products for the dropdown
 $all_products = $pdo->query("SELECT id, product_name, price FROM products")->fetchAll();
+
+// Fetch today's orders for the current staff member
 $stmt_all_orders = $pdo->prepare("SELECT o.*, p.category 
                             FROM orders o 
                             LEFT JOIN products p ON o.product_id = p.id 
                             WHERE o.user_id = ? 
+                            AND DATE(o.created_at) = CURDATE() 
                             ORDER BY o.created_at DESC");
 $stmt_all_orders->execute([$current_user_id]);
 $all_orders = $stmt_all_orders->fetchAll();
@@ -68,14 +90,10 @@ function e($value): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track Orders</title>
+    <title>Track Orders - Daily View</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/style.css">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/table-to-excel@1.0.4/dist/tableToExcel.min.js"></script>
-
     <style>
         .order-section { padding: 20px; }
         .order-title-bar { background-color: #f28c28; color: white; padding: 12px; border-radius: 25px; text-align: center; font-weight: bold; margin-bottom: 30px; max-width: 600px; margin: 0 auto 30px auto; }
@@ -115,13 +133,14 @@ function e($value): string {
             <header class="header">
                 <div class="header-left">
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
-                    <h1>Track Orders</h1>
+                    <h1>Daily Order Tracking</h1>
                 </div>
             </header>
 
             <button class="refresh-btn" onclick="openForm()">Add Customer Order</button>
+            
             <section class="order-section">
-                <div class="order-title-bar">Track Orders & Deliveries</div>
+                <div class="order-title-bar">Orders for Today (<?= date('F d, Y') ?>)</div>
 
                 <table class="orders-table" id="ordersTable">
                     <thead>
@@ -142,23 +161,24 @@ function e($value): string {
                         <?php if (count($all_orders) > 0): ?>
                             <?php foreach ($all_orders as $row): ?>
                             <tr>
-                                <td>#<?= htmlspecialchars($row['order_id']) ?></td>
-                                <td><?= htmlspecialchars($row['customer_name']) ?></td>
-                                <td style="font-size: 15px;"><span class="category-badge"><?= htmlspecialchars($row['category'] ?? 'N/A') ?></span></td>
-                                <td>
-                                    <strong><?= htmlspecialchars($row['product_name']) ?></strong><br>
-                                </td>
-                                <td style="font-size: 15px;"><?= htmlspecialchars($row['variation']) ?: 'N/A' ?></td>
+                                <td>#<?= e($row['order_id']) ?></td>
+                                <td><?= e($row['customer_name']) ?></td>
+                                <td><span class="category-badge"><?= e($row['category'] ?? 'N/A') ?></span></td>
+                                <td><strong><?= e($row['product_name']) ?></strong></td>
+                                <td><?= e($row['variation']) ?: 'N/A' ?></td>
                                 <td><?= (int)$row['quantity'] ?></td>
                                 <td><strong>₱<?= number_format($row['total_price'], 2) ?></strong></td>
-                                <td><?= htmlspecialchars($row['fulfillment_method'] ?? 'N/A') ?></td>
-                                <td><span class="status-<?= htmlspecialchars($row['status']) ?>"><?= htmlspecialchars($row['status']) ?></span></td>
-                                <td><?= $row['created_at'] ? date('M d, Y', strtotime($row['created_at'])) : 'N/A' ?></td>
+                                <td><?= e($row['fulfillment_method'] ?? 'N/A') ?></td>
+                                <td><span class="status-<?= e($row['status']) ?>"><?= e($row['status']) ?></span></td>
+                                <td><?= $row['created_at'] ? date('h:i A', strtotime($row['created_at'])) : 'N/A' ?></td>
                             </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="9">No orders found for your account.</td>
+                                <td colspan="10" style="padding: 40px; color: #666; text-align:center;">
+                                    <i class="fa-solid fa-calendar-day" style="font-size: 2rem; display: block; margin-bottom: 10px; color: #ddd;"></i>
+                                    No orders found for today.
+                                </td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -166,7 +186,8 @@ function e($value): string {
             </section>
         </main>
     </div>
-<div id="popupForm" class="modal">
+
+    <div id="popupForm" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeForm()">&times;</span>
             <h2 style="color: #f28c28; margin-bottom: 20px;">New Order Entry</h2>
@@ -178,11 +199,10 @@ function e($value): string {
                 <select name="product_id" required>
                     <option value="">-- Select Product --</option>
                     <?php foreach ($all_products as $p): ?>
-                        <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['product_name']) ?></option>
+                        <option value="<?= $p['id'] ?>"><?= e($p['product_name']) ?></option>
                     <?php endforeach; ?>
                 </select>
 
-                <!-- Ensure name="variation" is present -->
                 <label>Variation:</label>
                 <input type="text" name="variation" placeholder="e.g. Blue, Large, 500ml" required>
                 
@@ -208,6 +228,13 @@ function e($value): string {
         document.getElementById('sidebarToggle').addEventListener('click', () => {
             document.querySelector('.sidebar').classList.toggle('collapsed');
         });
+
+        window.onclick = function(event) {
+            let modal = document.getElementById("popupForm");
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
     </script>
 </body>
 </html>

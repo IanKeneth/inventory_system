@@ -1,7 +1,16 @@
 <?php
 session_start();
+
 require_once "../auth/conn.php";
 /** @var PDO $pdo */ 
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../login.php");
+    exit();
+}
+
+$current_user_id = $_SESSION['user_id'];
+$user_role = $_SESSION['role'] ?? 'Admin'; 
 
 
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'All';
@@ -163,7 +172,7 @@ function e($value): string {
                                     </td>
                                     <td>
                                         <b><?= e($log['product_name']) ?></b>
-                                        <div style="font-size:0.75rem; color:var(--primary);"><?= e($log['variation']) ?></div>
+                                    
                                     </td>
                                     <td>
                                         <span class="badge <?= $log['type'] == 'In' ? 'badge-in' : 'badge-out' ?>">

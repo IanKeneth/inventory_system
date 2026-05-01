@@ -1,3 +1,67 @@
+<?php
+require 'conn.php'; 
+
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    //input validation
+    $name = htmlspecialchars(trim($_POST['name']));
+    $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
+    $password = trim($_POST['password'] ?? '');
+    $confirm_password = trim($_POST['confirm_password'] ?? '');
+    $passwordPattern = "/^(?=.*[0-9])(?=.*[!@#$%^&*]).{8,}$/";
+
+    if (empty($name) || !$email) {
+        ?>
+        <script>alert("Please fill in all fields.");</script>
+        <?php
+    }
+    elseif (!preg_match($passwordPattern, $password)) {
+        ?>
+        <script>
+            alert("Password too weak! Must be at least 8 characters or more and include special characters and numbers");
+        </script>
+        <?php
+    }
+    elseif ($password !== $confirm_password) {
+        ?>
+        <script>alert("Passwords do not match!");</script>
+        <?php
+    } else {
+        try{
+            // Check if email already exists
+            //Using prepare statement and parameters for secucrity  
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            
+            if ($stmt->rowCount() > 0) {
+                ?>
+                <script>alert("Email already registered!");</script>
+                <?php
+            } else {
+                // Check if email already exists
+            //Using prepare statement and parameters for secucrity  
+                $hashed = password_hash($password, PASSWORD_DEFAULT);
+                $insert = $pdo->prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)");
+                if ($insert->execute([$name, $email, $hashed])) {
+                    ?>
+                    <script>
+                        alert("Registration successful! Please login.");
+                        window.location.href = 'login.php';
+                    </script>
+                    <?php
+                }
+            }
+            //error handling
+        } catch (PDOException $e) {
+            error_log("DB Error: " . $e->getMessage());
+            ?>
+            <script>
+                alert("Sorry we are having technical issues");
+            </script>"
+            <?php
+        }
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
