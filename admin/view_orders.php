@@ -2,17 +2,26 @@
 require_once "../auth/conn.php";
 session_start(); 
 
+// Ensure the user is logged in and is an admin (or appropriate role)
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../auth/login.php");
+    exit();
+}
+
 if (isset($_POST['update_status'])) {
     $order_id = $_POST['order_id'];
     $new_status = trim($_POST['status']); 
     $decline_reason = isset($_POST['decline_reason']) ? trim($_POST['decline_reason']) : '';
+    $current_admin_id = $_SESSION['user_id']; // For reference, but we want the staff ID for the log
 
-    $stmt = $pdo->prepare("SELECT status, quantity, product_id FROM orders WHERE order_id = ?");
+    // FETCH the original order details including the user_id (Staff who created it)
+    $stmt = $pdo->prepare("SELECT status, quantity, product_id, user_id FROM orders WHERE order_id = ?");
     $stmt->execute([$order_id]);
     $current = $stmt->fetch();
 
     if ($current) {
         $current_status = $current['status'];
+        $original_staff_id = $current['user_id']; // This is the ID of the staff member
 
         $allowed_transitions = [
             'Pending'   => ['Approved', 'Delivered', 'Declined'],
@@ -26,7 +35,6 @@ if (isset($_POST['update_status'])) {
             header("Location: view_orders.php?error=" . urlencode("Order #$order_id is already marked as '$current_status'. No changes made."));
             exit();
         }
-
 
         $allowed = $allowed_transitions[$current_status] ?? [];
         if (!in_array($new_status, $allowed)) {
@@ -45,12 +53,14 @@ if (isset($_POST['update_status'])) {
             $old_status_have = strtolower(trim($current_status));
             $new_status_have = strtolower($new_status);
 
-            $should_deduct = (
+            // Logic: Record in inventory_logs and deduct stock ONLY when status moves to Approved or Delivered
+            $should_record_activity = (
                 $old_status_have === 'pending' &&
                 in_array($new_status_have, ['approved', 'delivered'])
             );
 
-            if ($should_deduct) {
+            if ($should_record_activity) {
+                // 1. Deduct from products table
                 $up = $pdo->prepare("UPDATE products SET quantity = quantity - ? WHERE id = ? AND quantity >= ?");
                 $up->execute([$current['quantity'], $current['product_id'], $current['quantity']]);
 
@@ -58,11 +68,19 @@ if (isset($_POST['update_status'])) {
                     throw new Exception("Insufficient stock in inventory to process this order!");
                 }
 
+                // 2. Insert into inventory_logs 
+                // We pass $original_staff_id so the log shows the order's creator
                 $reason_label = ucfirst($new_status_have);
-                $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, type, quantity, reason) VALUES (?, 'Out', ?, ?)");
-                $log_stmt->execute([$current['product_id'], $current['quantity'], "Order #$order_id $reason_label"]);
+                $log_stmt = $pdo->prepare("INSERT INTO inventory_logs (product_id, user_id, quantity, type, reason) VALUES (?, ?, ?, 'Out', ?)");
+                $log_stmt->execute([
+                    $current['product_id'], 
+                    $original_staff_id, 
+                    $current['quantity'], 
+                    "Order #$order_id $reason_label (Admin: ".$_SESSION['user_id'].")"
+                ]);
             }
 
+            // 3. Update the Order status itself
             $update = $pdo->prepare("UPDATE orders SET status = ?, decline_reason = ? WHERE order_id = ?");
             $update->execute([$new_status, $decline_reason, $order_id]);
 
@@ -118,12 +136,8 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
         
         .update-btn { background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: 0.3s; }
         .update-btn:hover { background: #d6761d; }
-        .update-btn:disabled { background: #ccc; cursor: not-allowed; }
 
         .status-select { padding: 8px; border-radius: 6px; border: 1px solid #ddd; }
-        .status-select:disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
-        .status-select option:disabled { color: #bbb; }
-
         .alert { padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: 500; }
         .alert-success { background: #d4edda; color: #155724; border-left: 5px solid #28a745; }
         .alert-error   { background: #f8d7da; color: #721c24; border-left: 5px solid #dc3545; }
@@ -160,7 +174,7 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
 
             <section class="admin-section">
                 <?php if(isset($_GET['success'])): ?>
-                    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Order status updated successfully!</div>
+                    <div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Order status updated and staff activity logged!</div>
                 <?php endif; ?>
                 
                 <?php if(isset($_GET['error'])): ?>
@@ -172,9 +186,9 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
                         <thead>
                             <tr>
                                 <th>Order ID</th>
+                                <th>Staff Member</th>
                                 <th>Customer</th>
                                 <th>Product</th>
-                                <th>Variation</th>
                                 <th>Qty</th>
                                 <th>Status</th>
                                 <th>Action</th>
@@ -191,12 +205,12 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
                             ?>
                             <tr>
                                 <td>#<?= $row['order_id'] ?></td>
+                                <td><strong><?= htmlspecialchars($row['staff_name']) ?></strong></td>
                                 <td><?= htmlspecialchars($row['customer_name']) ?></td>
                                 <td>
                                     <strong><?= htmlspecialchars($row['product_name']) ?></strong><br>
-                                    <small>Stock: <?= $row['current_stock_level'] ?></small>
+                                    <small>Variation: <?= htmlspecialchars($row['variation']) ?></small>
                                 </td>
-                                <td><?= htmlspecialchars($row['variation']) ?></td>
                                 <td><?= $row['quantity'] ?></td>
                                 <td>
                                     <span class="badge status-<?= $s ?>"><?= $s ?></span>
@@ -206,8 +220,7 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
                                 </td>
                                 <td>
                                     <?php if ($is_final): ?>
-                                        <!-- Final state: no action allowed -->
-                                        <span class="final-badge"><i class="fa-solid fa-lock"></i> No further changes allowed</span>
+                                        <span class="final-badge"><i class="fa-solid fa-lock"></i> Finalized</span>
                                     <?php else: ?>
                                         <form method="POST" onsubmit="return confirmUpdate(this);" style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
                                             <input type="hidden" name="order_id" value="<?= $row['order_id'] ?>">
@@ -226,7 +239,7 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
                                                 </button>
                                             </div>
                                             <div class="decline-box">
-                                                <input type="text" name="decline_reason" class="decline-input" placeholder="Reason for declining?">
+                                                <input type="text" name="decline_reason" class="decline-input" placeholder="Why decline?">
                                             </div>
                                         </form>
                                     <?php endif; ?>
@@ -242,36 +255,24 @@ $all_orders = $pdo->query("SELECT o.*, u.name as staff_name, p.quantity as curre
     </div>
 
     <script>
-        // Sidebar Toggle
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             document.querySelector('.sidebar').classList.toggle('collapsed');
         });
 
-        // Confirm before submitting — warn if same status selected
         function confirmUpdate(form) {
             const selectedStatus = form.status.value;
             const currentStatus = form.current_status.value;
-            const orderId = form.order_id.value;
-
             if (selectedStatus === currentStatus) {
-                alert(`Order #${orderId} is already marked as "${currentStatus}". Please select a different status.`);
+                alert("Please select a new status.");
                 return false;
             }
-
-            return confirm(`Update Order #${orderId} status from "${currentStatus}" to "${selectedStatus}"?`);
+            return confirm(`Change status to ${selectedStatus}? This will record the movement under the original staff member's log.`);
         }
 
-        // Show/Hide Decline Reason Box
         function checkDecline(select) {
             const container = select.closest('form');
             const reasonBox = container.querySelector('.decline-box');
-            if (select.value === 'Declined') {
-                reasonBox.style.display = 'block';
-                reasonBox.querySelector('input').required = true;
-            } else {
-                reasonBox.style.display = 'none';
-                reasonBox.querySelector('input').required = false;
-            }
+            reasonBox.style.display = (select.value === 'Declined') ? 'block' : 'none';
         }
     </script>
 </body>

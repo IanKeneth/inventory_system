@@ -162,18 +162,18 @@ function e($value): string {
             <div class="analysis-row">
                 <div class="content-box">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <h2>Revenue Trend (7 Days)</h2>
+                        <h2>Revenue Trend </h2>
                         <button onclick="exportExcel('sales')" class="report-btn">Export Trend</button>
                     </div>
                     <div style="height: 300px;"><canvas id="salesChart"></canvas></div>
                 </div>
 
                 <div class="content-box">
-                    <h2>Revenue Contribution</h2>
+                    <h2>Top Product Analysis</h2>
                     <div style="height: 250px;"><canvas id="topSellersChart"></canvas></div>
                     <div style="margin-top: 15px; padding: 12px; background: #f8f9fc; border-radius: 8px; font-size: 0.75rem; border: 1px solid #e3e6f0;">
                         <i class="fa-solid fa-lightbulb" style="color:#f6c23e"></i> 
-                        <strong>Insight:</strong> <?= !empty($demandData) ? e($demandData[0]['product_name']) . " is your top revenue driver." : "Insufficient data." ?>
+                        <strong>Insight:</strong> <?= !empty($demandData) ? e($demandData[0]['product_name']) . " is your top product." : "Insufficient data." ?>
                     </div>
                 </div>
             </div>

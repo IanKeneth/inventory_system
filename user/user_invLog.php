@@ -180,7 +180,6 @@ function e($value): string {
                                     </td>
                                     <td>
                                         <b><?= e($log['product_name']) ?></b>
-                                        <div style="font-size:0.75rem; color:var(--primary);"><?= e($log['variation']) ?></div>
                                     </td>
                                     <td>
                                         <span class="badge <?= $log['type'] == 'In' ? 'badge-in' : 'badge-out' ?>">

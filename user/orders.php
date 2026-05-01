@@ -26,11 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
         $unit_price = $product_info['price'];
         $total_price = $unit_price * $quantity;
 
-        // Start a Transaction to ensure both tables are updated or none at all
-        $pdo->beginTransaction();
-
         try {
-            // 1. Insert into Orders table
+            // 1. Insert into Orders table with status 'Pending'
+            // We do NOT log to inventory_logs here because the order is not yet Approved/Delivered.
             $sql_order = "INSERT INTO orders (
                         product_id, user_id, customer_name, product_name, 
                         variation, unit_price, quantity, total_price, fulfillment_method, status) 
@@ -42,25 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
                 $variation, $unit_price, $quantity, $total_price, $method
             ]);
 
-            // 2. Insert into inventory_logs table (This makes it show up in the staff activity logs)
-            // Note: Using 'type' and 'reason' as requested. 'type' is 'Out' because it is an order.
-            $sql_log = "INSERT INTO inventory_logs (product_id, user_id, quantity, type, reason, log_date) 
-                        VALUES (?, ?, ?, 'Out', ?, ?)";
-            
-            $stmt_log = $pdo->prepare($sql_log);
-            $stmt_log->execute([
-                $product_id, 
-                $user_id, 
-                $quantity, 
-                "New order created for customer: " . $customer_name
-            ]);
-
-            $pdo->commit();
             header("Location: orders.php?success=1");
             exit();
 
         } catch (Exception $e) {
-            $pdo->rollBack();
             die("Error processing order: " . $e->getMessage());
         }
     }
