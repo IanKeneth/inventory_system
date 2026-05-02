@@ -1,10 +1,8 @@
-/**
- * Fetches and renders the inventory grid
- */
+
 function loadInventory() {
     const grid = document.getElementById('inventory-grid');
     
-    // Show loading state
+
     grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #7f8c8d;">Loading catalog...</div>';
 
     fetch('get_product_api.php')
@@ -19,8 +17,7 @@ function loadInventory() {
             if (result.status === 'success' && result.data && result.data.length > 0) {
                 let allCardsHTML = '';
 
-               result.data.forEach(product => {
-                // Keep your existing calculation logic here...
+            result.data.forEach(product => {
                 const max = parseInt(product.max_quantity) || 100;
                 const current = parseInt(product.quantity) || 0;
                 const percent = Math.min((current / max) * 100, 100);
@@ -89,9 +86,7 @@ function loadInventory() {
         });
 }
 
-/**
- * Handles product deletion
- */
+
 function confirmDelete(id) {
     if (!confirm("Are you sure you want to delete this product? All logs for this item will be lost.")) {
         return;
@@ -116,9 +111,7 @@ function confirmDelete(id) {
         });
 }
 
-/**
- * Search functionality
- */
+
 const searchInput = document.getElementById('inventorySearch');
 if (searchInput) {
     searchInput.addEventListener('keyup', function() {
@@ -132,7 +125,4 @@ if (searchInput) {
     });
 }
 
-/**
- * INITIALIZE: Run when the page loads
- */
 document.addEventListener('DOMContentLoaded', loadInventory);

@@ -3,7 +3,6 @@ session_start();
 require_once "../auth/conn.php";
 /** @var PDO $pdo */ 
 
-// 1. Session & Role Check
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit();
@@ -18,7 +17,6 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $whereClauses = [];
 $params = [];
 
-// 2. Permission Logic: Only Staff are restricted to their own ID
 if ($user_role !== 'Admin') {
     $whereClauses[] = "il.user_id = :current_user_id";
     $params[':current_user_id'] = $current_user_id;
@@ -37,7 +35,6 @@ if (!empty($search)) {
 
 $whereSQL = !empty($whereClauses) ? " WHERE " . implode(" AND ", $whereClauses) : "";
 
-// 3. Main Query
 $query = "SELECT 
             il.*, 
             p.product_name, 
@@ -56,7 +53,6 @@ foreach ($params as $key => $val) {
 $stmt->execute();
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 4. Restricted Summary Totals
 $sumWhere = ($user_role !== 'Admin') ? " WHERE user_id = :uid" : "";
 $sumParams = ($user_role !== 'Admin') ? [':uid' => $current_user_id] : [];
 

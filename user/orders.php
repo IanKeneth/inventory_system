@@ -27,8 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
         $total_price = $unit_price * $quantity;
 
         try {
-            // 1. Insert into Orders table with status 'Pending'
-            // We do NOT log to inventory_logs here because the order is not yet Approved/Delivered.
             $sql_order = "INSERT INTO orders (
                         product_id, user_id, customer_name, product_name, 
                         variation, unit_price, quantity, total_price, fulfillment_method, status) 
@@ -49,10 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_order'])) {
     }
 }
 
-// Fetch products for the dropdown
 $all_products = $pdo->query("SELECT id, product_name, price FROM products")->fetchAll();
 
-// Fetch today's orders for the current staff member
 $stmt_all_orders = $pdo->prepare("SELECT o.*, p.category 
                             FROM orders o 
                             LEFT JOIN products p ON o.product_id = p.id 

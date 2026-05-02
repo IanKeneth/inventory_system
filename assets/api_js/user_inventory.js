@@ -2,7 +2,7 @@ function loadInventory() {
     const grid = document.getElementById('inventory-grid');
     grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 50px; color: #7f8c8d;">Loading catalog...</div>';
 
-    // Ensure this path leads to your API file
+
     fetch('../admin/get_product_api.php')
         .then(response => {
             if (!response.ok) throw new Error('HTTP error! status: ' + response.status);
