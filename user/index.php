@@ -26,14 +26,17 @@ try {
 
     $stmtPTrans = $pdo->prepare("SELECT COUNT(*) FROM transfer_requests WHERE user_id = ? AND status = 'Pending'");
     $stmtPTrans->execute([$user_id]);
+    $pTransCount = $stmtPTrans->fetchColumn();
 
     $stmtPReports = $pdo->prepare("SELECT COUNT(*) FROM basic_reports WHERE user_id = ? AND status = 'Pending'");
     $stmtPReports->execute([$user_id]);
+    $pReportsCount = $stmtPReports->fetchColumn(); 
 
     $stmtPOrders = $pdo->prepare("SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'Pending'");
     $stmtPOrders->execute([$user_id]);
+    $pOrdersCount = $stmtPOrders->fetchColumn();
 
-    $pendingRequests = $stmtPTrans->fetchColumn() + $stmtPOrders->fetchColumn();
+    $pendingRequests = $pTransCount + $pOrdersCount + $pReportsCount;
 
     $stmtDTrans = $pdo->prepare("SELECT COUNT(*) FROM transfer_requests WHERE user_id = ? AND status = 'Approved' AND DATE(created_at) = CURDATE()");
     $stmtDTrans->execute([$user_id]);
@@ -130,7 +133,7 @@ function e($value): string {
         </aside>
 
         <main class="main-content">
-            <header class="header">
+            <header class="header" style="padding: 15px 25px; background:#f28c28; border-bottom: 1px solid #f24628; margin-bottom:10px;">
                 <div style="display:flex; align-items:center; gap:15px;">
                     <button id="sidebarToggle" class="hamburger-btn"><i class="fa-solid fa-bars"></i></button>
                     <h1 style="font-size:1.25rem; font-weight:700;">Staff Overview</h1>
@@ -193,7 +196,10 @@ function e($value): string {
                             </div>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <p style="text-align:center; color:var(--text-muted); padding:20px;">No recent activity yet.</p>
+                        <div style="text-align:center; padding:30px;">
+                             <i class="fa-solid fa-inbox" style="font-size:2rem; color:#e3e6f0; margin-bottom:10px;"></i>
+                             <p style="color:var(--text-muted); margin:0;">No recent activity yet.</p>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -203,6 +209,10 @@ function e($value): string {
     <script>
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             document.querySelector('.sidebar').classList.toggle('active');
+        });
+        const sidebar = document.querySelector('.sidebar');
+        document.getElementById('sidebarToggle').addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
         });
     </script>
 </body>

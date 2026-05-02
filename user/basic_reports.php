@@ -221,7 +221,7 @@ function e($value): string {
     </div>
 
     <script>
-        // Modal Control
+
         function openModal() {
             document.getElementById('reportModal').style.display = 'flex';
         }
@@ -229,14 +229,11 @@ function e($value): string {
             document.getElementById('reportModal').style.display = 'none';
         }
 
-        // Category selection
         function selectCat(el, val) {
             document.querySelectorAll('.cat-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
             document.getElementById('cat_input').value = val;
         }
-
-        // Close modal if clicking outside the white card
         window.onclick = function(event) {
             let modal = document.getElementById('reportModal');
             if (event.target == modal) {
